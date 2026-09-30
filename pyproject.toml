@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis-game-designer"
+version = "0.1.0"
+description = "Jarvis AI assistant expert game design advisor plugin with RAG and ChromaDB"
+readme = "kurallar.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Mehmet & Antigravity" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+dependencies = [
+    "google-genai>=2.20.0",
+    "pydantic>=2.0.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "loguru>=0.7.0",
+    "apscheduler>=3.10.0",
+    "python-dotenv>=1.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0.0"
+]
+
+[project.optional-dependencies]
+full = [
+    "chromadb>=0.5.0",
+    "sentence-transformers>=3.0.0",
+    "scrapy>=2.11.0"
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["game_designer*", "seeds*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers"

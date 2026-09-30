@@ -1,0 +1,9 @@
+{
+  "title": "The Art of Game Design: A Book of Lenses",
+  "author": "Jesse Schell",
+  "source_type": "book",
+  "category": "core_mechanics",
+  "subcategory": "design_philosophy",
+  "tags": ["elemental_tetrad", "lenses", "flow", "mechanics", "game_design"],
+  "content": "# The Art of Game Design: A Book of Lenses\n\n## 1. The Elemental Tetrad\nJesse Schell introduces the Elemental Tetrad, which states that every game is composed of four visible and interrelated elements:\n- **Mechanics:** The rules and systems of the game. What the player can and cannot do, and how actions are resolved. Mechanics alone make a game a game, but they cannot create a memorable experience without the other elements.\n- **Story:** The sequence of events that unfolds in the game. It can be linear and pre-scripted (branching or cinematic) or emergent (created naturally through mechanics and player choices).\n- **Aesthetics:** How the game looks, sounds, smells, and feels. Aesthetics have a direct impact on the player's emotional state and immerse the player into the fantasy.\n- **Technology:** The medium in which the aesthetics happen, the mechanics are executed, and the story is communicated. Whether paper, console, or VR, technology defines what is possible.\n\n## 2. The Core Loop and Player Motivations\nA core loop represents the fundamental cyclical interaction that the player repeats continuously: Action -> Feedback -> Reward -> Upgrade -> Action. A great core loop balances intrinsic motivation (pleasure of playing) with extrinsic motivation (loot, unlocks, rankings).\n\n## 3. Flow State and Interest Curves\nSchell emphasizes Mihaly Csikszentmihalyi's Flow State: maintaining a narrow corridor between boredom (when challenges are too easy) and anxiety/frustration (when challenges are too hard). The interest curve must alternate between rising tension, climaxes, and moments of relief (pacing)."
+}

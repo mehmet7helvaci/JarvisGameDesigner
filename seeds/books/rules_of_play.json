@@ -1,0 +1,9 @@
+{
+  "title": "Rules of Play: Game Design Fundamentals",
+  "author": "Katie Salen & Eric Zimmerman",
+  "source_type": "book",
+  "category": "game_systems",
+  "subcategory": "foundations",
+  "tags": ["rules_of_play", "meaningful_play", "magic_circle", "feedback_loops", "balance"],
+  "content": "# Rules of Play: Game Design Fundamentals\n\n## 1. Meaningful Play\nSalen and Zimmerman define meaningful play as emerging from the relationship between player action and system outcome. Meaningful play is discernible (the player receives immediate, transparent feedback for every action) and integrated (actions taken in the moment directly impact the long-term state of the game).\n\n## 2. The Magic Circle\nThe Magic Circle is the boundary that separates the real world from the game space. Within this boundary, new psychological and social rules apply (e.g., kicking a ball into a net is meaningless in the wild, but in soccer it creates ecstasy).\n\n## 3. Cybernetic Systems and Feedback Loops\nGames are dynamic cybernetic systems driven by feedback loops:\n- **Positive Feedback Loops (Snowballing):** Reinforces changes in the system. When a player wins an advantage, positive feedback makes them even stronger (e.g., Monopoly where having more properties leads to more money to buy even more properties). Causes divergence and finishes games quickly, but can cause helplessness for losing players.\n- **Negative Feedback Loops (Catch-up / Rubber Banding):** Dampens changes and stabilizes the system. When a player falls behind, negative feedback gives them bonuses (e.g., Mario Kart blue shells and higher-tier powerups for racers in last place). Promotes dramatic, closely contested matches but risks feeling unfair to skilled leaders if overtuned."
+}

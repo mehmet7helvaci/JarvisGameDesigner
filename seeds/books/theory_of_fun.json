@@ -1,0 +1,9 @@
+{
+  "title": "A Theory of Fun for Game Design",
+  "author": "Raph Koster",
+  "source_type": "book",
+  "category": "player_psychology",
+  "subcategory": "fun_and_learning",
+  "tags": ["theory_of_fun", "pattern_recognition", "cognition", "boredom", "game_design"],
+  "content": "# A Theory of Fun for Game Design\n\n## 1. Fun as Pattern Recognition and Learning\nRaph Koster defines fun as the feedback our brain gives us when we successfully absorb and master new patterns in a safe, risk-free environment. Games are essentially teachers of systems and mental models.\n\n## 2. The Danger of Grokking (Boredom)\nOnce a player has completely 'grokked' (fully understood and optimized) a pattern, the brain ceases to receive dopamine rewards, and the game becomes trivial and boring. Conversely, if a system presents noise without discernible patterns, the player feels frustrated and confused.\n\n## 3. Pacing and Cognitive Load\nTo maintain engagement:\n- Introduce mechanics in isolation (low cognitive load).\n- Combine known mechanics in novel ways to create systemic surprises.\n- Avoid dominant strategies (strategies that make all other tactical decisions obsolete).\n- Ensure visual and mechanical clarity so failures teach lessons rather than provoke anger."
+}

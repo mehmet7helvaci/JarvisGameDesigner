@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Secrets
+.env
+*.pem
+
+# Data & Logs
+data/chroma_db/*
+!data/chroma_db/.gitkeep
+data/scraper_cache/*
+!data/scraper_cache/.gitkeep
+data/logs/*
+!data/logs/.gitkeep
+data/user_profiles/*
+!data/user_profiles/.gitkeep
+data/projects/*
+!data/projects/.gitkeep
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/

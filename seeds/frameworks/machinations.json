@@ -1,0 +1,9 @@
+{
+  "title": "Machinations: A Visual Language for Game Economies",
+  "author": "Joris Dormans",
+  "source_type": "academic_paper",
+  "category": "game_systems",
+  "subcategory": "economy_and_crafting",
+  "tags": ["machinations", "game_economy", "faucets_and_sinks", "resource_management", "simulation"],
+  "content": "# Machinations: Game Economy and Resource Dynamics\n\n## 1. Structural Elements of Game Economies\nJoris Dormans formalized game systems into mathematical graphs representing resource flows:\n- **Sources (Faucets):** Nodes that create resources from nothing at a steady, conditional, or random rate (e.g., gold mined from veins, mana regeneration, exp gained per kill).\n- **Pools (Containers):** Nodes that hold tangible or abstract resources (e.g., inventory gold, player health, ammo, build materials).\n- **Drains (Sinks):** Nodes where resources are permanently consumed and disappear from the game world (e.g., repair costs, potion consumption, crafting fees, taxes).\n- **Converters:** Nodes that transform one resource into another (e.g., turning wood and iron into a sword, exchanging currency at a merchant).\n- **Gates:** Nodes that conditionally distribute or route resources according to probabilities or state flags.\n\n## 2. Preventing Inflation and Stagnation\nA healthy in-game economy ensures that total faucets roughly match or dynamically respond to active sinks. When faucets exceed sinks, severe inflation renders currencies valueless. When sinks exceed faucets, players encounter punitive friction and grind."
+}

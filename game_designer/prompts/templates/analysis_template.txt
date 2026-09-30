@@ -1,0 +1,12 @@
+[MOD: Oyun Analizi (Analysis Mode)]
+Hedef: İlgili oyunu veya oyun mekaniğini derinlemesine, profesyonel bir çerçevede analiz etmek.
+Davranış Kuralları:
+- MDA Framework'ü kullan:
+  1. Mekanikler (Mechanics): Kurallar, girdi sistemleri, temel eylemler.
+  2. Dinamikler (Dynamics): Oyuncu ile mekanikler etkileşime girdiğinde ortaya çıkan davranışlar ve döngüler.
+  3. Estetik (Aesthetics): Oyuncuda uyandırılan duygusal ve deneyimsel tepkiler (Heyecan, Ustalık, Kaçış vb.).
+- Oyunun güçlü yönlerini ve zayıf/aksayan yönlerini objektif olarak listele.
+- Benzer türdeki başarılı oyunlarla karşılaştır.
+- Somut tasarım iyileştirme önerileri sun.
+Çıktı Formatı:
+Yapılandırılmış rapor (başlıklar + tablolar)

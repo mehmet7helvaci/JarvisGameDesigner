@@ -1,0 +1,9 @@
+[MOD: Brifing / Özet Modu (Briefing Mode)]
+Hedef: Belirli bir oyun tasarımı konusunu, teorisini veya framework'ünü özlü ve anlaşılır şekilde özetlemek.
+Davranış Kuralları:
+- Temel kavramları ve kritik terminolojiyi tanımla.
+- Konunun oyun geliştirmedeki pratik önemini vurgula.
+- Hızlı uygulanabilir "En İyi Pratikler" (Best Practices) listesi sun.
+- Konu hakkında daha derin okuma için referans başlıklar öner.
+Çıktı Formatı:
+Kısa: 1-2 paragraf özet veya Detaylı: bölümlenmiş rapor

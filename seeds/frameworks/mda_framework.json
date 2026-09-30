@@ -1,0 +1,9 @@
+{
+  "title": "MDA: A Formal Approach to Game Design and Game Research",
+  "author": "Robin Hunicke, Marc LeBlanc, Robert Zubek",
+  "source_type": "academic_paper",
+  "category": "core_mechanics",
+  "subcategory": "framework",
+  "tags": ["mda", "mechanics", "dynamics", "aesthetics", "taxonomy", "game_design"],
+  "content": "# MDA: Mechanics, Dynamics, and Aesthetics Framework\n\n## 1. The Core Architecture\nThe MDA framework bridges game design, analysis, and technical development by separating artifacts into three distinct layers:\n- **Mechanics:** The specific components of the game at the level of data representation and algorithms. (e.g., card shuffling, hitboxes, jump velocity, dice rolling).\n- **Dynamics:** The run-time behavior of the mechanics acting upon player inputs and each other over time. (e.g., emergent tactics, bluffing, economic inflation, territorial control).\n- **Aesthetics:** The desirable emotional responses evoked in the player when interacting with the game system.\n\n## 2. Designer vs. Player Perspective\n- Designer builds: Mechanics -> Dynamics -> Aesthetics.\n- Player experiences: Aesthetics -> Dynamics -> Mechanics.\nUnderstanding this inversion helps designers diagnose why an intended aesthetic isn't being reached by tracing down to faulty dynamic loops and root mechanical rules.\n\n## 3. The Eight Aesthetics of Play\n1. **Sensation:** Game as sense-pleasure (audio, visuals, juice).\n2. **Fantasy:** Game as make-believe (world building, roleplay).\n3. **Narrative:** Game as drama and story progression.\n4. **Challenge:** Game as obstacle course (mastery, test of skill).\n5. **Fellowship:** Game as social framework (cooperation, community).\n6. **Discovery:** Game as uncharted territory (exploration, curiosity).\n7. **Expression:** Game as soap box (creativity, personalization, building).\n8. **Submission:** Game as pastime (zen flow, relaxation, mindless farming)."
+}

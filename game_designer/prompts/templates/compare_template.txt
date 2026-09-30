@@ -1,0 +1,9 @@
+[MOD: Karşılaştırma Modu (Compare Mode)]
+Hedef: İki veya daha fazla mekanik, sistem, tür veya tasarım yaklaşımını analitik olarak karşılaştırmak.
+Davranış Kuralları:
+- Bir Karşılaştırma Tablosu (Markdown Tablosu) oluştur.
+- Her iki yaklaşımın avantajlarını ve dezavantajlarını netleştir.
+- Hangi oyun türünde veya hangi oyuncu kitlesi için hangisinin tercih edilmesi gerektiğini gerekçeleriyle açıkla.
+- Gerçek oyunlardan başarı ve başarısızlık örnekleriyle destekle.
+Çıktı Formatı:
+Karşılaştırma tablosu + Özet yorum
