@@ -440,6 +440,9 @@ class ProjectManager:
         if target_path is None or not target_path.is_file():
             raise FileNotFoundError(f"Blender dosyası diskte bulunamadı: '{file_path_or_id}'")
 
+        if target_path.suffix.lower() in [".ase", ".aseprite"]:
+            return self.open_aseprite_file(str(target_path), project_name_or_id=project_name_or_id)
+
         str_path = str(target_path.resolve())
 
         try:
@@ -465,6 +468,73 @@ class ProjectManager:
             logger.error(f"Blender dosyası açılırken hata ({str_path}): {e}")
             raise
 
+    def open_aseprite_file(
+        self,
+        file_path_or_id: str,
+        project_name_or_id: str | None = None,
+    ) -> bool:
+        """Aseprite (.ase / .aseprite) dosyasını sistemin varsayılan uygulaması veya Aseprite ile açar."""
+        target_path: Path | None = None
+
+        if project_name_or_id:
+            proj = self.get_project(project_name_or_id)
+            if proj:
+                blend_ref = proj.get_blend_file(file_path_or_id)
+                if blend_ref:
+                    target_path = Path(blend_ref.file_path)
+
+        if target_path is None:
+            p = Path(file_path_or_id)
+            if p.is_file():
+                target_path = p
+            else:
+                for proj in self.list_projects():
+                    blend_ref = proj.get_blend_file(file_path_or_id)
+                    if blend_ref:
+                        target_path = Path(blend_ref.file_path)
+                        break
+
+        if target_path is None or not target_path.is_file():
+            raise FileNotFoundError(f"Aseprite dosyası diskte bulunamadı: '{file_path_or_id}'")
+
+        str_path = str(target_path.resolve())
+
+        try:
+            is_ase = target_path.suffix.lower() in [".ase", ".aseprite"]
+            ase_exe = find_aseprite_executable()
+
+            # Resim dosyası Aseprite ile açılmak isteniyorsa ve exe mevcutsa doğrudan exe ile aç
+            if not is_ase and ase_exe:
+                subprocess.Popen([ase_exe, str_path])
+                logger.info(f"Görsel dosyası Aseprite ile açıldı ({ase_exe}): {str_path}")
+                return True
+
+            if sys.platform == "win32":
+                try:
+                    os.startfile(str_path)
+                except OSError as os_err:
+                    if ase_exe:
+                        subprocess.Popen([ase_exe, str_path])
+                    else:
+                        raise RuntimeError(
+                            f"Aseprite dosyası açılamadı ({os_err}). Sistemde Aseprite kurulu olmayabilir veya dosya uzantısı ilişkilendirilmemiş."
+                        ) from os_err
+            elif sys.platform == "darwin":
+                if ase_exe:
+                    subprocess.Popen([ase_exe, str_path])
+                else:
+                    subprocess.Popen(["open", str_path])
+            else:
+                if ase_exe:
+                    subprocess.Popen([ase_exe, str_path])
+                else:
+                    subprocess.Popen(["xdg-open", str_path])
+            logger.info(f"Aseprite dosyası açıldı: {str_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Aseprite dosyası açılırken hata ({str_path}): {e}")
+            raise
+
 
 def find_blender_executable() -> str | None:
     """Sistemde kurulu Blender çalıştırılabilir dosyasını arar."""
@@ -485,5 +555,52 @@ def find_blender_executable() -> str | None:
             matches = glob.glob(pat)
             if matches:
                 return sorted(matches, reverse=True)[0]
+    return None
+
+
+def find_aseprite_executable() -> str | None:
+    """Sistemde kurulu Aseprite çalıştırılabilir dosyasını Program Files, Steam ve AppData'da arar."""
+    import shutil
+    which_ase = shutil.which("aseprite") or shutil.which("Aseprite")
+    if which_ase:
+        return which_ase
+
+    if sys.platform == "win32":
+        import glob
+        patterns = [
+            r"C:\Program Files\Aseprite\aseprite.exe",
+            r"C:\Program Files (x86)\Aseprite\aseprite.exe",
+            r"C:\Program Files\Steam\steamapps\common\Aseprite\aseprite.exe",
+            r"C:\Program Files (x86)\Steam\steamapps\common\Aseprite\aseprite.exe",
+            os.path.expandvars(r"%PROGRAMFILES%\Steam\steamapps\common\Aseprite\aseprite.exe"),
+            os.path.expandvars(r"%PROGRAMFILES(X86)%\Steam\steamapps\common\Aseprite\aseprite.exe"),
+            r"D:\Steam\steamapps\common\Aseprite\aseprite.exe",
+            r"D:\SteamLibrary\steamapps\common\Aseprite\aseprite.exe",
+            r"E:\SteamLibrary\steamapps\common\Aseprite\aseprite.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Aseprite\aseprite.exe"),
+            os.path.expandvars(r"%LOCALAPPDATA%\Aseprite\aseprite.exe"),
+            os.path.expandvars(r"%APPDATA%\Aseprite\aseprite.exe"),
+        ]
+        for pat in patterns:
+            matches = glob.glob(pat)
+            if matches:
+                return sorted(matches, reverse=True)[0]
+    elif sys.platform == "darwin":
+        for mac_path in [
+            "/Applications/Aseprite.app/Contents/MacOS/aseprite",
+            os.path.expanduser("~/Applications/Aseprite.app/Contents/MacOS/aseprite"),
+            os.path.expanduser("~/Library/Application Support/Steam/steamapps/common/Aseprite/Aseprite.app/Contents/MacOS/aseprite"),
+        ]:
+            if Path(mac_path).is_file():
+                return mac_path
+    elif sys.platform.startswith("linux"):
+        for linux_path in [
+            "/usr/bin/aseprite",
+            "/usr/local/bin/aseprite",
+            os.path.expanduser("~/.steam/steam/steamapps/common/Aseprite/aseprite"),
+            os.path.expanduser("~/.local/share/Steam/steamapps/common/Aseprite/aseprite"),
+        ]:
+            if Path(linux_path).is_file():
+                return linux_path
     return None
 

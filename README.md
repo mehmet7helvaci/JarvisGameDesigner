@@ -3,9 +3,9 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Tests: 81 Passed](https://img.shields.io/badge/tests-81%20passed-brightgreen.svg)]()
+[![Tests: 105 Passed](https://img.shields.io/badge/tests-105%20passed-brightgreen.svg)]()
 
-> **Jarvis AI** ekosistemi için geliştirilmiş, profesyonel oyun tasarımı rehberi, RAG (Retrieval-Augmented Generation) tabanlı yapay zeka danışmanı ve Blender 3D / animasyon varlık stüdyosu.
+> **Jarvis AI** ekosistemi için geliştirilmiş, profesyonel oyun tasarımı rehberi, RAG (Retrieval-Augmented Generation) tabanlı yapay zeka danışmanı ve 3D / 2D piksel sanatı & Aseprite varlık stüdyosu.
 
 ---
 
@@ -16,15 +16,22 @@
   - %0–100 Güvenilirlik Puanlaması (`ConfidenceScorer`) ve otomatik kaynak doğrulama.
   - Canlı akışlı (streaming) ultra hızlı yanıtlar ve LRU bellek önbelleği.
 
+- **🎨 Tam Aseprite (`.aseprite` / `.ase`) & 2D Piksel Sanatı Stüdyosu:**
+  - Saf Python ikili (pure-Python binary) Aseprite ayrıştırıcı: 32/16/8 bpp renk derinlikleri, ham & ZLIB sıkıştırmalı Cel blokları, Paletler ve bağlantılı kareler.
+  - Canlı sprite & hareketli GIF oynatımı: Oynat/Duraklat, kare adımlama (Sonraki/Önceki) ve döngü kontrolleri.
+  - Piksel Sanatı (Nearest-Neighbor) vs Yumuşak (Lanczos) ölçekleme anahtarı sayesinde pikseller daima net ve keskin.
+  - Tek tıkla `"🎨 Aseprite ile Aç"` (Steam, Program Files, AppData otomatik tespiti).
+
 - **🕹️ Etkileşimli 3D ve Canlı Animasyon Viewport'u:**
-  - `.blend`, `.fbx`, `.gltf`, `.glb`, `.obj`, `.dae`, `.bvh` dosyaları için entegre 3D önizleme.
+  - `.blend`, `.fbx`, `.gltf`, `.glb`, `.obj`, `.dae`, `.bvh`, `.png`, `.jpg`, `.gif`, `.webp`, `.bmp`, `.tga` tam format desteği.
+  - Detaylı prosedürel 3D tank geometrisi (gövde, paletler, taret, namlu, namlu ağzı) ve fütüristik araçlar.
   - 18 kemikli ileri kinematik (FK) motoru ile yürüme, koşma, zıplama ve saldırı animasyonlarını 30 FPS canlı oynatma.
   - Blender `.blend` başlıklarından gömülü render küçük resimlerini (thumbnail) otomatik ayıklama.
-  - 3 boyutta fare ile serbest döndürme (Orbit), yakınlaşma (Zoom) ve kaydırma (Pan).
+  - 2D ve 3D modlarında fareyle serbest taşıma (Pan), yakınlaştırma (Zoom) ve döndürme (Orbit).
 
 - **⚡ Sürükle-Bırak & Tek Tıkla Anında Dosya Tanıma:**
   - Dosyaları veya tüm klasörleri sürükleyip bırakarak form doldurmadan anında projeye ekleme.
-  - Dosya adından ve uzantısından akıllı kategori sezgisi (*Animasyon*, *Karakter*, *Çevre/Level*, *Prop*, *Araç*, *VFX*).
+  - Dosya adından ve uzantısından akıllı kategori sezgisi (*2D Sprite / Piksel Sanatı*, *Animasyon*, *Karakter*, *Çevre/Level*, *Prop*, *Araç*, *VFX*).
 
 - **🔄 Jarvis ile Çift Yönlü Canlı Senkronizasyon (Two-Way Sync):**
   - Standalone masaüstü uygulamasında oluşturulan veya düzenlenen tüm projeler ve 3D varlıklar, Jarvis'e anında yansır.

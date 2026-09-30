@@ -4,7 +4,7 @@ from game_designer.data.chroma_manager import ChromaManager
 from game_designer.data.document_processor import DocumentProcessor
 from game_designer.data.embedding_manager import EmbeddingManager
 from game_designer.data.user_profile import UserProfileStore
-from game_designer.data.project_manager import ProjectManager, find_blender_executable
+from game_designer.data.project_manager import ProjectManager, find_blender_executable, find_aseprite_executable
 
 __all__ = [
     "ChromaManager",
@@ -13,5 +13,6 @@ __all__ = [
     "UserProfileStore",
     "ProjectManager",
     "find_blender_executable",
+    "find_aseprite_executable",
 ]
 

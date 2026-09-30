@@ -18,6 +18,14 @@ from tkinter import ttk
 from typing import Any
 from PIL import Image, ImageTk
 
+from game_designer.models.project import (
+    SUPPORTED_3D_EXTENSIONS,
+    SUPPORTED_ASEPRITE_EXTENSIONS,
+    SUPPORTED_IMAGE_EXTENSIONS,
+    SUPPORTED_EXTENSIONS,
+    detect_asset_category,
+)
+from game_designer.ui.aseprite_parser import parse_aseprite_file
 from game_designer.utils.logger import logger
 
 
@@ -437,9 +445,126 @@ def generate_default_3d_mesh(style: str = "cube") -> tuple[list[tuple[float, flo
     return vertices, faces
 
 
-def generate_category_mesh(category: str) -> tuple[list[tuple[float, float, float]], list[list[int]]]:
-    """Kategoriye özgü yüksek kaliteli fütüristik 3D geometri üretir."""
+def generate_speeder_mesh() -> tuple[list[tuple[float, float, float]], list[list[int]]]:
+    """Fütüristik Speeder / Araç Geometrisi üretir."""
+    vertices = [
+        (0.0, 0.1, 1.2),    # Burun
+        (-0.6, 0.0, -0.9),  # Sol arka
+        (0.6, 0.0, -0.9),   # Sağ arka
+        (0.0, 0.45, -0.2),  # Kokpit tepesi
+        (-0.8, 0.15, -0.5), # Sol kanat
+        (0.8, 0.15, -0.5),  # Sağ kanat
+        (0.0, -0.2, -0.8),  # Taban arka
+    ]
+    faces = [
+        [0, 4, 3], [0, 3, 5], [3, 4, 1], [3, 2, 5],
+        [1, 6, 2, 3], [0, 1, 6], [0, 6, 2],
+    ]
+    return vertices, faces
+
+
+def generate_tank_mesh() -> tuple[list[tuple[float, float, float]], list[list[int]]]:
+    """Detaylı 3D tank geometrisi üretir (gövde/hull, paletler/treads, taret/turret, namlu/barrel)."""
+    vertices = [
+        # --- 1. Gövde (Hull: 0-7) ---
+        (-0.7, -0.2, 0.9),   # 0: Ön alt sol
+        (0.7, -0.2, 0.9),    # 1: Ön alt sağ
+        (0.7, 0.15, 0.6),    # 2: Ön üst sağ (eğimli zırh)
+        (-0.7, 0.15, 0.6),   # 3: Ön üst sol
+        (-0.7, -0.2, -1.0),  # 4: Arka alt sol
+        (0.7, -0.2, -1.0),   # 5: Arka alt sağ
+        (0.7, 0.15, -1.0),   # 6: Arka üst sağ
+        (-0.7, 0.15, -1.0),  # 7: Arka üst sol
+
+        # --- 2. Sol Palet (Left Tread: 8-15) ---
+        (-1.0, -0.45, 1.05),   # 8: Ön alt
+        (-0.75, -0.45, 1.05),  # 9
+        (-0.75, 0.05, 0.85),   # 10: Ön üst
+        (-1.0, 0.05, 0.85),    # 11
+        (-1.0, -0.45, -1.15),  # 12: Arka alt
+        (-0.75, -0.45, -1.15), # 13
+        (-0.75, 0.05, -0.95),  # 14: Arka üst
+        (-1.0, 0.05, -0.95),   # 15
+
+        # --- 3. Sağ Palet (Right Tread: 16-23) ---
+        (0.75, -0.45, 1.05),   # 16: Ön alt
+        (1.0, -0.45, 1.05),    # 17
+        (1.0, 0.05, 0.85),     # 18: Ön üst
+        (0.75, 0.05, 0.85),    # 19
+        (0.75, -0.45, -1.15),  # 20: Arka alt
+        (1.0, -0.45, -1.15),   # 21
+        (1.0, 0.05, -0.95),    # 22: Arka üst
+        (0.75, 0.05, -0.95),   # 23
+
+        # --- 4. Taret (Turret: 24-31) ---
+        (-0.45, 0.15, 0.35),   # 24: Ön alt sol
+        (0.45, 0.15, 0.35),    # 25: Ön alt sağ
+        (0.35, 0.50, 0.25),    # 26: Ön üst sağ
+        (-0.35, 0.50, 0.25),   # 27: Ön üst sol
+        (-0.45, 0.15, -0.45),  # 28: Arka alt sol
+        (0.45, 0.15, -0.45),   # 29: Arka alt sağ
+        (0.35, 0.50, -0.35),   # 30: Arka üst sağ
+        (-0.35, 0.50, -0.35),  # 31: Arka üst sol
+
+        # --- 5. Namlu Kalkanı (Gun Mantlet: 32-39) ---
+        (-0.15, 0.23, 0.35),  # 32
+        (0.15, 0.23, 0.35),   # 33
+        (0.15, 0.42, 0.35),   # 34
+        (-0.15, 0.42, 0.35),  # 35
+        (-0.12, 0.25, 0.52),  # 36
+        (0.12, 0.25, 0.52),   # 37
+        (0.12, 0.40, 0.52),   # 38
+        (-0.12, 0.40, 0.52),  # 39
+
+        # --- 6. Namlu Gövdesi (Cannon Barrel: 40-47) ---
+        (-0.06, 0.29, 0.52),  # 40: Taban alt sol
+        (0.06, 0.29, 0.52),   # 41: Taban alt sağ
+        (0.06, 0.37, 0.52),   # 42: Taban üst sağ
+        (-0.06, 0.37, 0.52),  # 43: Taban üst sol
+        (-0.06, 0.29, 1.50),  # 44: Uç alt sol
+        (0.06, 0.29, 1.50),   # 45: Uç alt sağ
+        (0.06, 0.37, 1.50),   # 46: Uç üst sağ
+        (-0.06, 0.37, 1.50),  # 47: Uç üst sol
+
+        # --- 7. Namlu Freni / Ağzı (Muzzle Brake: 48-55) ---
+        (-0.09, 0.27, 1.45),  # 48
+        (0.09, 0.27, 1.45),   # 49
+        (0.09, 0.39, 1.45),   # 50
+        (-0.09, 0.39, 1.45),  # 51
+        (-0.09, 0.27, 1.62),  # 52
+        (0.09, 0.27, 1.62),   # 53
+        (0.09, 0.39, 1.62),   # 54
+        (-0.09, 0.39, 1.62),  # 55
+    ]
+    faces = [
+        # Gövde
+        [0, 1, 2, 3], [4, 7, 6, 5], [3, 2, 6, 7], [0, 4, 5, 1], [0, 3, 7, 4], [1, 5, 6, 2],
+        # Sol Palet
+        [8, 9, 10, 11], [12, 15, 14, 13], [11, 10, 14, 15], [8, 12, 13, 9], [8, 11, 15, 12], [9, 13, 14, 10],
+        # Sağ Palet
+        [16, 17, 18, 19], [20, 23, 22, 21], [19, 18, 22, 23], [16, 20, 21, 17], [17, 21, 22, 18], [16, 19, 23, 20],
+        # Taret
+        [24, 25, 26, 27], [28, 31, 30, 29], [27, 26, 30, 31], [24, 27, 31, 28], [25, 29, 30, 26],
+        # Namlu Kalkanı
+        [36, 37, 38, 39], [32, 36, 39, 35], [33, 34, 38, 37], [35, 39, 38, 34],
+        # Namlu Gövdesi
+        [40, 41, 45, 44], [42, 43, 47, 46], [40, 44, 47, 43], [41, 42, 46, 45],
+        # Namlu Ağzı
+        [48, 49, 53, 52], [50, 51, 55, 54], [48, 52, 55, 51], [49, 50, 54, 53], [52, 53, 54, 55],
+    ]
+    return vertices, faces
+
+
+def generate_category_mesh(category: str, asset_name: str = "") -> tuple[list[tuple[float, float, float]], list[list[int]]]:
+    """Kategoriye veya varlık adına özgü yüksek kaliteli fütüristik 3D geometri üretir."""
     cat = (category or "").strip()
+    name_lower = (asset_name or "").lower()
+
+    # Varlık adında tank / panzer geçiyorsa veya kategori Araç ise detaylı 3D tank geometrisi sun
+    if any(kw in name_lower for kw in ["tank", "panzer"]) or cat == "Araç" or "tank" in cat.lower():
+        if any(kw in name_lower for kw in ["speeder", "plane", "ucak", "gemi"]) and not any(kw in name_lower for kw in ["tank", "panzer"]):
+            return generate_speeder_mesh()
+        return generate_tank_mesh()
 
     if cat == "Karakter":
         # 3D Karakter / Mankeni (Kafa, Göğüs, Kol ve Bacak blokları)
@@ -516,22 +641,7 @@ def generate_category_mesh(category: str) -> tuple[list[tuple[float, float, floa
         return vertices, faces
 
     elif cat == "Araç":
-        # Fütüristik Speeder / Araç Geometrisi
-        vertices = [
-            # Gövde burnu ve kokpit
-            (0.0, 0.1, 1.2),    # Burun
-            (-0.6, 0.0, -0.9),  # Sol arka
-            (0.6, 0.0, -0.9),   # Sağ arka
-            (0.0, 0.45, -0.2),  # Kokpit tepesi
-            (-0.8, 0.15, -0.5), # Sol kanat
-            (0.8, 0.15, -0.5),  # Sağ kanat
-            (0.0, -0.2, -0.8),  # Taban arka
-        ]
-        faces = [
-            [0, 4, 3], [0, 3, 5], [3, 4, 1], [3, 2, 5],
-            [1, 6, 2, 3], [0, 1, 6], [0, 6, 2],
-        ]
-        return vertices, faces
+        return generate_tank_mesh()
 
     # Varsayılan: Kristal / Gem
     return generate_default_3d_mesh("gem")
@@ -566,6 +676,14 @@ class Viewport3DCanvas(tk.Frame):
         self.current_thumbnail_img: Image.Image | None = None
         self.current_tk_img: ImageTk.PhotoImage | None = None
         self.display_mode: str = "3d"  # '3d' veya 'image'
+        self.scaling_mode: str = "pixel"  # 'pixel' (Nearest) veya 'smooth' (Lanczos)
+
+        # 2D Sprite & Animasyon Durumu
+        self.animation_frames: list[Image.Image] = []
+        self.frame_durations: list[int] = []
+        self.current_frame_index: int = 0
+        self.is_looping: bool = True
+        self._frame_elapsed_ms: int = 0
 
         # Geometri ve İskelet
         self.mesh_vertices: list[tuple[float, float, float]] = []
@@ -613,14 +731,34 @@ class Viewport3DCanvas(tk.Frame):
 
         needs_render = False
 
-        # Canlı iskelet animasyonu
+        # 1. 2D Sprite / Aseprite / GIF kare animasyonu
+        if self.is_animating and self.display_mode == "image" and len(self.animation_frames) > 1:
+            dur = (
+                self.frame_durations[self.current_frame_index]
+                if self.current_frame_index < len(self.frame_durations)
+                else 100
+            )
+            self._frame_elapsed_ms += 33
+            if self._frame_elapsed_ms >= dur:
+                self._frame_elapsed_ms = max(0, self._frame_elapsed_ms - dur)
+                if self.current_frame_index + 1 < len(self.animation_frames):
+                    self.current_frame_index += 1
+                else:
+                    if self.is_looping:
+                        self.current_frame_index = 0
+                    else:
+                        self.is_animating = False
+                self.current_thumbnail_img = self.animation_frames[self.current_frame_index]
+                needs_render = True
+
+        # 2. Canlı iskelet animasyonu
         is_anim_asset = (self.current_category == "Animasyon" or self.current_format == ".bvh" or bool(self.bvh_bones))
         if self.is_animating and is_anim_asset and self.display_mode == "3d":
             self.anim_time += 0.04
             self.bvh_bones = get_animated_skeleton_bones(self.anim_subtype, self.anim_time)
             needs_render = True
 
-        # Otomatik Döndürme (Turntable auto-spin)
+        # 3. Otomatik Döndürme (Turntable auto-spin)
         if self.auto_spin and self.display_mode == "3d":
             self.yaw = (self.yaw + 1.2) % 360
             needs_render = True
@@ -649,6 +787,44 @@ class Viewport3DCanvas(tk.Frame):
         self.render()
         return self.is_animating
 
+    def play_animation(self) -> None:
+        """Animasyon oynatmayı başlatır."""
+        self.is_animating = True
+        self.render()
+
+    def pause_animation(self) -> None:
+        """Animasyon oynatmayı duraklatır."""
+        self.is_animating = False
+        self.render()
+
+    def next_frame(self) -> int:
+        """Bir sonraki kareye adım atar."""
+        if self.animation_frames:
+            self.current_frame_index = (self.current_frame_index + 1) % len(self.animation_frames)
+            self.current_thumbnail_img = self.animation_frames[self.current_frame_index]
+            self.render()
+        return self.current_frame_index
+
+    def prev_frame(self) -> int:
+        """Bir önceki kareye adım atar."""
+        if self.animation_frames:
+            self.current_frame_index = (self.current_frame_index - 1) % len(self.animation_frames)
+            self.current_thumbnail_img = self.animation_frames[self.current_frame_index]
+            self.render()
+        return self.current_frame_index
+
+    def toggle_loop(self) -> bool:
+        """Animasyon döngü durumunu (looping) açar/kapatır."""
+        self.is_looping = not self.is_looping
+        self.render()
+        return self.is_looping
+
+    def toggle_scaling_filter(self) -> str:
+        """Piksel (Nearest) ile Yumuşak (Lanczos) ölçekleme arasında geçiş yapar."""
+        self.scaling_mode = "smooth" if self.scaling_mode == "pixel" else "pixel"
+        self.render()
+        return self.scaling_mode
+
     def toggle_auto_spin(self) -> bool:
         """Otomatik 3D stüdyo döndürmesini açar/kapatır."""
         self.auto_spin = not self.auto_spin
@@ -672,6 +848,13 @@ class Viewport3DCanvas(tk.Frame):
         self._last_mouse_y = event.y
 
         if self.display_mode == "image":
+            # 2D Görsel veya Aseprite dosyası ise fareyle sürükleme pan (taşıma) yapar
+            if self.current_format in (SUPPORTED_IMAGE_EXTENSIONS | SUPPORTED_ASEPRITE_EXTENSIONS):
+                self.pan_x += dx
+                self.pan_y += dy
+                self.render()
+                return
+            # 3D dosyanın gömülü thumbnail'i ise 3D sahneye geç
             self.display_mode = "3d"
 
         self.yaw = (self.yaw + dx * 0.7) % 360
@@ -698,7 +881,7 @@ class Viewport3DCanvas(tk.Frame):
         self.render()
 
     def reset_camera(self) -> None:
-        """Kamera açısını ve yakınlaştırmayı varsayılana sıfırlar."""
+        """Kamera açısını, yakınlaştırmayı ve kaydırmayı varsayılana sıfırlar."""
         self.yaw = 35.0
         self.pitch = -22.0
         self.zoom = 120.0
@@ -708,12 +891,15 @@ class Viewport3DCanvas(tk.Frame):
 
     def toggle_mode(self) -> None:
         """Görsel küçük resim ve 3D görünüm modları arasında geçiş yapar."""
-        if self.current_thumbnail_img:
+        if self.current_thumbnail_img or self.animation_frames:
             self.display_mode = "3d" if self.display_mode == "image" else "image"
+            if self.display_mode == "3d" and not self.mesh_vertices:
+                fname = self.current_file_path.name if self.current_file_path else ""
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(self.current_category, fname)
             self.render()
 
     def set_asset(self, file_path_str: str, category: str = "") -> None:
-        """Viewport'ta görüntülenecek 3D veya animasyon dosyasını ayarlar."""
+        """Viewport'ta görüntülenecek 3D, 2D veya Aseprite dosyasını ayarlar."""
         path = Path(file_path_str)
         self.current_file_path = path
         ext = path.suffix.lower()
@@ -733,16 +919,88 @@ class Viewport3DCanvas(tk.Frame):
             self.anim_subtype = "walk"
 
         # Kategori tespiti
-        from game_designer.models.project import detect_asset_category
         resolved_category = category or detect_asset_category(str(path))
         self.current_category = resolved_category
 
         self.current_thumbnail_img = None
+        self.animation_frames = []
+        self.frame_durations = []
+        self.current_frame_index = 0
+        self._frame_elapsed_ms = 0
         self.mesh_vertices = []
         self.mesh_faces = []
         self.bvh_bones = []
 
-        if ext == ".blend":
+        # Her yeni varlık yüklendiğinde görünümü merkezle ve yakınlaştırmayı sıfırla
+        self.pan_x = 0.0
+        self.pan_y = 0.0
+        self.zoom = 120.0
+        self.yaw = 35.0
+        self.pitch = -22.0
+
+        # 1. ASEPRITE DOSYALARI (.aseprite, .ase)
+        if ext in SUPPORTED_ASEPRITE_EXTENSIONS:
+            try:
+                anim = parse_aseprite_file(path)
+                if anim.frames:
+                    self.animation_frames = anim.frames
+                    self.frame_durations = anim.durations
+                    self.current_frame_index = 0
+                    self.current_thumbnail_img = self.animation_frames[0]
+                    self.display_mode = "image"
+                    self.is_animating = len(self.animation_frames) > 1
+                    # 3D moduna geçilirse gösterilecek yedek geometri
+                    self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
+                else:
+                    self.display_mode = "3d"
+                    self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
+            except Exception as e:
+                logger.warning(f"Aseprite yükleme hatası ({path.name}): {e}")
+                self.display_mode = "3d"
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
+
+        # 2. 2D GÖRSEL VE SPRITE DOSYALARI (.png, .jpg, .gif, .webp, .bmp, .tga)
+        elif ext in SUPPORTED_IMAGE_EXTENSIONS:
+            try:
+                with Image.open(path) as img:
+                    if ext == ".gif":
+                        frames = []
+                        durations = []
+                        try:
+                            n_frames = getattr(img, "n_frames", 1)
+                            for f_idx in range(n_frames):
+                                img.seek(f_idx)
+                                frames.append(img.convert("RGBA").copy())
+                                dur = img.info.get("duration", 100) or 100
+                                durations.append(dur)
+                        except (EOFError, Exception):
+                            pass
+                        if not frames:
+                            frames = [img.convert("RGBA").copy()]
+                            durations = [100]
+                        self.animation_frames = frames
+                        self.frame_durations = durations
+                        self.current_frame_index = 0
+                        self.current_thumbnail_img = self.animation_frames[0]
+                        self.display_mode = "image"
+                        self.is_animating = len(self.animation_frames) > 1
+                    else:
+                        rgba_img = img.convert("RGBA").copy()
+                        self.animation_frames = [rgba_img]
+                        self.frame_durations = [100]
+                        self.current_frame_index = 0
+                        self.current_thumbnail_img = rgba_img
+                        self.display_mode = "image"
+                        self.is_animating = False
+
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
+            except Exception as e:
+                logger.warning(f"Görsel yükleme hatası ({path.name}): {e}")
+                self.display_mode = "3d"
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
+
+        # 3. BLENDER (.blend)
+        elif ext == ".blend":
             thumb = extract_blend_thumbnail(path)
             if thumb:
                 self.current_thumbnail_img = thumb
@@ -753,8 +1011,9 @@ class Viewport3DCanvas(tk.Frame):
             if resolved_category == "Animasyon":
                 self.bvh_bones = get_animated_skeleton_bones(self.anim_subtype, self.anim_time)
             else:
-                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category)
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
 
+        # 4. OBJ MESH
         elif ext == ".obj":
             v, f = parse_obj_mesh(path)
             if v and f:
@@ -763,9 +1022,10 @@ class Viewport3DCanvas(tk.Frame):
             elif resolved_category == "Animasyon":
                 self.bvh_bones = get_animated_skeleton_bones(self.anim_subtype, self.anim_time)
             else:
-                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category)
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
             self.display_mode = "3d"
 
+        # 5. BVH İSKELET ANİMASYONU
         elif ext == ".bvh":
             bones = parse_bvh_skeleton(path)
             if bones:
@@ -774,6 +1034,7 @@ class Viewport3DCanvas(tk.Frame):
                 self.bvh_bones = get_animated_skeleton_bones(self.anim_subtype, self.anim_time)
             self.display_mode = "3d"
 
+        # 6. GLTF / GLB
         elif ext in [".glb", ".gltf"]:
             v, f, img = parse_glb_or_gltf(path)
             if img:
@@ -787,15 +1048,15 @@ class Viewport3DCanvas(tk.Frame):
                 self.bvh_bones = get_animated_skeleton_bones(self.anim_subtype, self.anim_time)
                 self.display_mode = "3d"
             else:
-                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category)
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
                 self.display_mode = "3d"
 
+        # 7. DİĞER (FBX, DAE vb.)
         else:
-            # .fbx, .dae vb.
             if resolved_category == "Animasyon":
                 self.bvh_bones = get_animated_skeleton_bones(self.anim_subtype, self.anim_time)
             else:
-                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category)
+                self.mesh_vertices, self.mesh_faces = generate_category_mesh(resolved_category, path.name)
             self.display_mode = "3d"
 
         self.render()
@@ -819,11 +1080,30 @@ class Viewport3DCanvas(tk.Frame):
 
         # 1. Resim modu
         if self.display_mode == "image" and self.current_thumbnail_img:
-            img = self.current_thumbnail_img.copy()
-            img.thumbnail((max(50, w - 24), max(50, h - 24)), Image.Resampling.LANCZOS)
-            self.current_tk_img = ImageTk.PhotoImage(img)
+            orig_w, orig_h = self.current_thumbnail_img.size
+            avail_w = max(50, w - 30)
+            avail_h = max(50, h - 30)
+
+            # Temel ölçekleme faktörü
+            base_scale = min(avail_w / max(1, orig_w), avail_h / max(1, orig_h))
+            # Küçük piksel sanatı sprite'ları için ek büyütme
+            if orig_w <= 64 and orig_h <= 64:
+                base_scale = max(base_scale, min(4.0, avail_w / orig_w, avail_h / orig_h))
+
+            zoom_mult = max(0.05, self.zoom / 120.0)
+            target_w = max(1, int(orig_w * base_scale * zoom_mult))
+            target_h = max(1, int(orig_h * base_scale * zoom_mult))
+
+            filter_mode = (
+                Image.Resampling.NEAREST
+                if self.scaling_mode == "pixel"
+                else Image.Resampling.LANCZOS
+            )
+            scaled_img = self.current_thumbnail_img.resize((target_w, target_h), resample=filter_mode)
+            self.current_tk_img = ImageTk.PhotoImage(scaled_img)
             self.canvas.create_image(cx, cy, image=self.current_tk_img, anchor=tk.CENTER)
-            self._draw_hud(w, h, is_thumbnail=True)
+            is_blend_thumb = bool(self.current_format == ".blend" and not self.animation_frames)
+            self._draw_hud(w, h, is_thumbnail=is_blend_thumb)
             return
 
         # 2. 3D Izgara (Studio Ground Grid)
@@ -967,7 +1247,8 @@ class Viewport3DCanvas(tk.Frame):
         cat = self.current_category or "Varlık"
 
         # Üst Başlık Rozeti
-        badge_text = f"🔷 [{cat}] {fname} ({fmt})"
+        badge_fname = (fname[:25] + "…") if len(fname) > 28 else fname
+        badge_text = f"🔷 [{cat}] {badge_fname} ({fmt})"
         self.canvas.create_text(
             12, 12,
             text=badge_text,
@@ -978,7 +1259,22 @@ class Viewport3DCanvas(tk.Frame):
 
         # Durum ve İpuçları
         if is_thumbnail:
-            tip_text = "📷 Blender/Gömülü Görsel Önizleme (3D görünüme geçmek için tıklayıp sürükleyin)"
+            tip_text = "📷 Blender Gömülü Görsel Önizleme (3D görünüme geçmek için tıklayıp sürükleyin veya Mod butonuna basın)"
+        elif self.display_mode == "image":
+            filter_txt = "👾 Piksel (Nearest)" if self.scaling_mode == "pixel" else "✨ Yumuşak (Lanczos)"
+            zoom_pct = int((self.zoom / 120.0) * 100)
+            if self.animation_frames and len(self.animation_frames) > 1:
+                cur_dur = (
+                    self.frame_durations[self.current_frame_index]
+                    if self.current_frame_index < len(self.frame_durations)
+                    else 100
+                )
+                status_sym = "▶️ OYNATILIYOR" if self.is_animating else "⏸️ DURAKLATILDI"
+                loop_str = "🔁 Açık" if self.is_looping else "⏹️ Kapalı"
+                tip_text = f"🎞️ {status_sym} | Kare: {self.current_frame_index + 1}/{len(self.animation_frames)} ({cur_dur}ms) • Döngü: {loop_str} • {filter_txt} • %{zoom_pct} | Sol Tık: Taşı • Tekerlek: Zoom"
+            else:
+                orig_w, orig_h = self.current_thumbnail_img.size if self.current_thumbnail_img else (0, 0)
+                tip_text = f"🖼️ 2D Görsel Önizleme ({orig_w}x{orig_h}) • {filter_txt} • %{zoom_pct} | Sol Tık: Taşı • Tekerlek: Zoom"
         elif self.bvh_bones:
             status_symbol = "▶️ CANLI ANİMASYON" if self.is_animating else "⏸️ DURAKLATILDI"
             tip_text = f"🏃 {status_symbol} ({self.anim_subtype.upper()}) | Sol Tık: Çevir • Tekerlek: Zoom • Sağ Tık: Pan"
@@ -995,18 +1291,23 @@ class Viewport3DCanvas(tk.Frame):
         )
 
         # Sağ üst köşe istatistiği
-        if not is_thumbnail:
+        if self.display_mode == "image" and self.current_thumbnail_img:
+            orig_w, orig_h = self.current_thumbnail_img.size
+            stat_text = f"{orig_w}x{orig_h} px | {fmt}"
+        elif not is_thumbnail:
             if self.bvh_bones:
                 stat_text = f"Kemikler: {len(self.bvh_bones)} | FPS: ~30"
             elif self.mesh_vertices:
                 stat_text = f"Verts: {len(self.mesh_vertices)} | Polys: {len(self.mesh_faces)}"
             else:
                 stat_text = "3D Sahne Aktif"
+        else:
+            stat_text = "Thumbnail"
 
-            self.canvas.create_text(
-                w - 12, 12,
-                text=stat_text,
-                fill="#64748b",
-                font=("Segoe UI", 8, "bold"),
-                anchor=tk.NE,
-            )
+        self.canvas.create_text(
+            w - 12, 12,
+            text=stat_text,
+            fill="#64748b",
+            font=("Segoe UI", 8, "bold"),
+            anchor=tk.NE,
+        )

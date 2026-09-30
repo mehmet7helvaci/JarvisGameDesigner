@@ -21,6 +21,9 @@ from PIL import Image, ImageTk
 from game_designer.config import Settings, get_settings
 from game_designer.models.project import (
     SUPPORTED_3D_EXTENSIONS,
+    SUPPORTED_IMAGE_EXTENSIONS,
+    SUPPORTED_ASEPRITE_EXTENSIONS,
+    SUPPORTED_EXTENSIONS,
     BlendFileRef,
     GameProject,
     detect_asset_category,
@@ -168,12 +171,13 @@ class GameDesignerApp:
 
             p = Path(file_str)
             if p.is_dir():
-                for ext in SUPPORTED_3D_EXTENSIONS:
+                for ext in SUPPORTED_EXTENSIONS:
                     for f in p.rglob(f"*{ext}"):
                         if f.is_file():
                             all_paths.append(str(f))
             elif p.is_file():
-                all_paths.append(str(p))
+                if p.suffix.lower() in SUPPORTED_EXTENSIONS:
+                    all_paths.append(str(p))
 
         if all_paths:
             self._batch_add_assets(all_paths)
@@ -434,7 +438,7 @@ class GameDesignerApp:
 
         tk.Label(
             drop_banner,
-            text="📥 Sürükle & Bırak veya Tek Tıkla Ekle (.blend, .fbx, .obj, .bvh)",
+            text="📥 Sürükle & Bırak veya Tek Tıkla Ekle (3D, 2D Görsel, Aseprite)",
             bg=DarkTheme.BG_INPUT,
             fg=DarkTheme.ACCENT_CYAN,
             font=(DarkTheme.FONT_FAMILY, 9, "bold"),
@@ -451,7 +455,8 @@ class GameDesignerApp:
         a_ctrl_bar = tk.Frame(a_box, bg=DarkTheme.BG_CARD)
         a_ctrl_bar.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Button(a_ctrl_bar, text="🚀 Aç", style="Success.TButton", command=self._open_selected_blend).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(a_ctrl_bar, text="🚀 Blender ile Aç", style="Success.TButton", command=self._open_selected_blend).pack(side=tk.LEFT, padx=(0, 3))
+        ttk.Button(a_ctrl_bar, text="🎨 Aseprite ile Aç", style="Primary.TButton", command=self._open_selected_aseprite).pack(side=tk.LEFT, padx=3)
         ttk.Button(a_ctrl_bar, text="🗑️ Kaldır", style="Secondary.TButton", command=self._remove_selected_blend).pack(side=tk.LEFT, padx=3)
         ttk.Button(a_ctrl_bar, text="🔄 Yenile", style="Secondary.TButton", command=self._refresh_blend_table).pack(side=tk.LEFT, padx=3)
 
@@ -460,9 +465,9 @@ class GameDesignerApp:
         self.blend_cat_combo = ttk.Combobox(
             a_ctrl_bar,
             textvariable=self.blend_cat_filter_var,
-            values=["Tümü", "Animasyon", "Karakter", "Çevre/Level", "Prop", "Araç", "VFX/Diğer", "Genel"],
+            values=["Tümü", "2D Sprite / Piksel Sanatı", "Animasyon", "Karakter", "Çevre/Level", "Prop", "Araç", "VFX/Diğer", "Genel"],
             state="readonly",
-            width=11,
+            width=14,
         )
         self.blend_cat_combo.pack(side=tk.LEFT, padx=2)
         self.blend_cat_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_blend_table())
@@ -529,7 +534,10 @@ class GameDesignerApp:
         ttk.Button(vp_header, text="🎯 Sıfırla", style="Secondary.TButton", command=self._reset_viewport_camera).pack(side=tk.RIGHT, padx=2)
         ttk.Button(vp_header, text="📷 / 📐 Mod", style="Secondary.TButton", command=self._toggle_viewport_mode).pack(side=tk.RIGHT, padx=2)
         ttk.Button(vp_header, text="🔄 3D Çevir", style="Secondary.TButton", command=self._toggle_viewport_spin).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(vp_header, text="▶️ / ⏸️ Canlı Animasyon", style="Secondary.TButton", command=self._toggle_viewport_animation).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(vp_header, text="👾 Piksel/Yumuşak", style="Secondary.TButton", command=self._toggle_viewport_scaling).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(vp_header, text="▶️ / ⏸️", style="Secondary.TButton", command=self._toggle_viewport_animation).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(vp_header, text="⏭️", style="Secondary.TButton", command=self._next_viewport_frame).pack(side=tk.RIGHT, padx=1)
+        ttk.Button(vp_header, text="⏮️", style="Secondary.TButton", command=self._prev_viewport_frame).pack(side=tk.RIGHT, padx=1)
 
         # Viewport + Yan Inspector Paneli
         vp_content = tk.Frame(vp_section, bg=DarkTheme.BG_CARD)
@@ -1226,6 +1234,10 @@ class GameDesignerApp:
             except Exception as e:
                 logger.error(f"Varlık ekleme hatası ({path.name}): {e}")
 
+        # Yeni eklenen varlıkların filtrelere takılmadan tabloda görünmesi için filtreyi 'Tümü' yap
+        if hasattr(self, "blend_cat_filter_var"):
+            self.blend_cat_filter_var.set("Tümü")
+
         self.selected_project = self.plugin.get_project(target_proj.id)
         self._refresh_all_data()
 
@@ -1245,9 +1257,11 @@ class GameDesignerApp:
                 return
 
         file_paths = filedialog.askopenfilenames(
-            title="3D / Animasyon Dosyası Seçin (.blend, .fbx, .obj, .gltf, .bvh)",
+            title="Oyun Varlığı Seçin (3D, 2D Görsel, Sprite, Aseprite)",
             filetypes=[
-                ("Tüm 3D & Animasyon Dosyaları", "*.blend;*.fbx;*.gltf;*.glb;*.obj;*.dae;*.bvh"),
+                ("Tüm Desteklenen Varlıklar", "*.blend;*.fbx;*.gltf;*.glb;*.obj;*.dae;*.bvh;*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp;*.tga;*.aseprite;*.ase"),
+                ("2D Görseller & Sprite (*.png;*.jpg;*.gif;*.webp;*.bmp;*.tga)", "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp;*.tga"),
+                ("Aseprite Dosyası (*.aseprite;*.ase)", "*.aseprite;*.ase"),
                 ("Blender Projesi (*.blend)", "*.blend"),
                 ("FBX / Animasyon (*.fbx;*.bvh)", "*.fbx;*.bvh"),
                 ("3D Mesh (*.obj;*.gltf;*.glb;*.dae)", "*.obj;*.gltf;*.glb;*.dae"),
@@ -1275,6 +1289,40 @@ class GameDesignerApp:
             self.plugin.open_blend_file(file_path_or_id=blend_id, project_name_or_id=self.selected_project.id if self.selected_project else None)
         except Exception as e:
             messagebox.showerror("Açma Hatası", f"Dosya açılamadı:\n{e}\n\nBlender veya uygun bir 3D görüntüleyici kurulu olduğundan emin olun.")
+
+    def _open_selected_aseprite(self) -> None:
+        """Seçilen Aseprite / görsel dosyasını Aseprite ile açar."""
+        selected_items = self.blend_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Uyarı", "Lütfen açmak için bir dosya seçin.")
+            return
+
+        blend_id = selected_items[0]
+        try:
+            self.plugin.open_aseprite_file(
+                file_path_or_id=blend_id,
+                project_name_or_id=self.selected_project.id if self.selected_project else None,
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "Aseprite Açma Hatası",
+                f"Dosya Aseprite ile açılamadı:\n{e}\n\nAseprite'ın bilgisayarınızda (Steam, Program Files veya AppData) kurulu olduğundan emin olun.",
+            )
+
+    def _toggle_viewport_scaling(self) -> None:
+        """Viewport piksel / yumuşak ölçekleme filtresini değiştirir."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.toggle_scaling_filter()
+
+    def _next_viewport_frame(self) -> None:
+        """Viewport animasyonunda sonraki kareye adım atar."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.next_frame()
+
+    def _prev_viewport_frame(self) -> None:
+        """Viewport animasyonunda önceki kareye adım atar."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.prev_frame()
 
     def _remove_selected_blend(self) -> None:
         """Seçili varlık referansını projeden kaldırır."""

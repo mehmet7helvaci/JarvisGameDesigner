@@ -574,3 +574,16 @@ class GameDesignerPlugin(JarvisPlugin):
             file_path_or_id=file_path_or_id,
             project_name_or_id=project_name_or_id,
         )
+
+    def open_aseprite_file(
+        self,
+        file_path_or_id: str,
+        project_name_or_id: str | None = None,
+    ) -> bool:
+        """Aseprite (.ase / .aseprite) dosyasını sistemin varsayılan uygulaması veya Aseprite ile açar."""
+        self._ensure_initialized()
+        assert self.project_manager is not None
+        return self.project_manager.open_aseprite_file(
+            file_path_or_id=file_path_or_id,
+            project_name_or_id=project_name_or_id,
+        )

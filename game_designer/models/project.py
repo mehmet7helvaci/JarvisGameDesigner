@@ -22,6 +22,9 @@ def format_file_size(size_bytes: int) -> str:
 
 
 SUPPORTED_3D_EXTENSIONS = {".blend", ".fbx", ".gltf", ".glb", ".obj", ".dae", ".bvh"}
+SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tga"}
+SUPPORTED_ASEPRITE_EXTENSIONS = {".aseprite", ".ase"}
+SUPPORTED_EXTENSIONS = SUPPORTED_3D_EXTENSIONS | SUPPORTED_IMAGE_EXTENSIONS | SUPPORTED_ASEPRITE_EXTENSIONS
 
 
 def detect_asset_category(file_path_or_name: str) -> str:
@@ -45,13 +48,21 @@ def detect_asset_category(file_path_or_name: str) -> str:
                     return True
         return False
 
-    # 1. Animasyon: .bvh uzantısı veya animasyon hareket anahtar kelimeleri
+    # Animasyon hareket anahtar kelimeleri
     anim_keywords = [
         "anim", "walk", "run", "idle", "jump", "attack", "dance", "death", "crawl", "pose",
         "sprint", "motion", "hit", "combo", "fall", "climb", "roll",
         "yuru", "yurume", "kos", "kosma", "zipla", "ziplama", "saldir", "saldiri", "darbe",
         "olum", "animasyon", "dans", "hareket", "tirman", "ucus", "durus",
     ]
+
+    # Aseprite dosyaları: Animasyon anahtar kelimeleri varsa "Animasyon", aksi halde "2D Sprite / Piksel Sanatı"
+    if ext in SUPPORTED_ASEPRITE_EXTENSIONS:
+        if matches(anim_keywords):
+            return "Animasyon"
+        return "2D Sprite / Piksel Sanatı"
+
+    # 1. Animasyon: .bvh uzantısı veya animasyon hareket anahtar kelimeleri
     if ext == ".bvh" or matches(anim_keywords):
         return "Animasyon"
 
@@ -100,6 +111,10 @@ def detect_asset_category(file_path_or_name: str) -> str:
     ]
     if matches(vfx_keywords):
         return "VFX/Diğer"
+
+    # 2D Görsel genel fallback'i
+    if ext in SUPPORTED_IMAGE_EXTENSIONS:
+        return "2D Sprite / Piksel Sanatı"
 
     return "Genel"
 
