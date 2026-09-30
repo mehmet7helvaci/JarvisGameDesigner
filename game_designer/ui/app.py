@@ -101,6 +101,13 @@ class GameDesignerApp:
         self.selected_blend_ref: BlendFileRef | None = None
         self._stream_running = False
 
+        # Modern Tek Ekranlı Çekmece Durumları
+        self._left_drawer_visible: bool = True
+        self._right_drawer_visible: bool = False
+        self._active_left_view: str = "assets"
+        self._chip_buttons: dict[str, tk.Button] = {}
+        self._act_buttons: dict[str, tk.Button] = {}
+
         self._setup_styles()
         self._build_ui()
         self._setup_drag_and_drop()
@@ -283,127 +290,296 @@ class GameDesignerApp:
         )
 
     def _build_ui(self) -> None:
-        """Ana stüdyo arayüzünü inşa eder."""
-        # Üst Başlık Banner (Header)
-        header = tk.Frame(self.root, bg=DarkTheme.BG_CARD, padx=16, pady=10)
-        header.pack(fill=tk.X, padx=10, pady=(8, 4))
+        """Modern, tek ekranlı (Blender / VS Code / Figma tarzı) stüdyo arayüzünü inşa eder."""
+        # 1. Üst İnce Stüdyo Çubuğu (Header Bar)
+        header = tk.Frame(self.root, bg="#090d16", padx=14, pady=6, bd=1, relief="ridge")
+        header.pack(fill=tk.X, padx=0, pady=0)
 
-        title_box = tk.Frame(header, bg=DarkTheme.BG_CARD)
+        title_box = tk.Frame(header, bg="#090d16")
         title_box.pack(side=tk.LEFT, fill=tk.Y)
 
-        title_row = tk.Frame(title_box, bg=DarkTheme.BG_CARD)
+        title_row = tk.Frame(title_box, bg="#090d16")
         title_row.pack(anchor=tk.W)
 
         tk.Label(
             title_row,
             text="🎮 JARVIS GAME DESIGNER",
-            bg=DarkTheme.BG_CARD,
+            bg="#090d16",
             fg=DarkTheme.ACCENT_CYAN,
-            font=(DarkTheme.FONT_FAMILY, 14, "bold"),
+            font=(DarkTheme.FONT_FAMILY, 12, "bold"),
         ).pack(side=tk.LEFT)
 
         tk.Label(
             title_row,
             text=" STUDIO",
-            bg=DarkTheme.BG_CARD,
+            bg="#090d16",
             fg=DarkTheme.ACCENT_PURPLE,
-            font=(DarkTheme.FONT_FAMILY, 14, "bold"),
+            font=(DarkTheme.FONT_FAMILY, 12, "bold"),
         ).pack(side=tk.LEFT)
 
-        tk.Label(
-            title_box,
-            text="3D Varlık Önizleme • Sürükle-Bırak Tanımlama • Yüksek Hızlı AI Danışmanı",
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.TEXT_MUTED,
-            font=(DarkTheme.FONT_FAMILY, 8),
-        ).pack(anchor=tk.W)
+        # Sağ üst: Aktif proje rozeti ve hızlı klasör açıcı
+        right_hdr = tk.Frame(header, bg="#090d16")
+        right_hdr.pack(side=tk.RIGHT)
 
-        # Sağ üst aktif proje rozeti
         self.active_banner = tk.Label(
-            header,
+            right_hdr,
             text="Aktif Proje: Yükleniyor...",
             bg=DarkTheme.BG_INPUT,
             fg=DarkTheme.SUCCESS,
-            font=(DarkTheme.FONT_FAMILY, 10, "bold"),
-            padx=12,
-            pady=6,
+            font=(DarkTheme.FONT_FAMILY, 9, "bold"),
+            padx=10,
+            pady=4,
             relief="flat",
         )
-        self.active_banner.pack(side=tk.RIGHT)
+        self.active_banner.pack(side=tk.RIGHT, padx=4)
 
-        # Sekme Yöneticisi (Notebook)
+        btn_open_folder = tk.Button(
+            right_hdr,
+            text="📁 Projeler Dizini",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MUTED,
+            activebackground=DarkTheme.ACCENT_CYAN,
+            activeforeground="#021526",
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=8,
+            pady=4,
+            cursor="hand2",
+            command=self._open_projects_folder,
+        )
+        btn_open_folder.pack(side=tk.RIGHT, padx=4)
+
+        # Testler ve geriye dönük uyumluluk için Notebook referansı
         self.notebook = ttk.Notebook(self.root, style="TNotebook")
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(4, 10))
-
-        # Sekme 1: Ana Stüdyo & 3D Varlık İstasyonu
         self.tab_projects = ttk.Frame(self.notebook, style="Dark.TFrame")
-        self.notebook.add(self.tab_projects, text=" 🎮 Stüdyo & 3D Varlıklar ")
-        self._build_studio_tab(self.tab_projects)
-
-        # Sekme 2: Oyun Tasarımı Danışmanı (Geniş RAG AI Görünümü)
         self.tab_rag = ttk.Frame(self.notebook, style="Dark.TFrame")
-        self.notebook.add(self.tab_rag, text=" 🤖 Tasarım Danışmanı (RAG AI) ")
-        self._build_rag_tab(self.tab_rag)
-
-        # Sekme 3: Senkronizasyon & Sistem Durumu
         self.tab_sync = ttk.Frame(self.notebook, style="Dark.TFrame")
+        self.notebook.add(self.tab_projects, text=" 🎮 Stüdyo & 3D Varlıklar ")
+        self.notebook.add(self.tab_rag, text=" 🤖 Tasarım Danışmanı (RAG AI) ")
         self.notebook.add(self.tab_sync, text=" 🔄 Senkronizasyon & Durum ")
-        self._build_sync_tab(self.tab_sync)
 
-    # =========================================================================
-    # SEKME 1: ANA STÜDYO (UNREAL / BLENDER DARK STUDIO DÜZENİ)
-    # =========================================================================
+        # 2. Ana Çalışma Alanı (Single-Screen Workspace)
+        self.workspace_frame = tk.Frame(self.root, bg=DarkTheme.BG_DARK)
+        self.workspace_frame.pack(fill=tk.BOTH, expand=True)
 
-    def _build_studio_tab(self, parent: ttk.Frame) -> None:
-        """Unreal/Blender Dark Studio tarzı ana çalışma alanını oluşturur."""
-        main_paned = tk.PanedWindow(
-            parent,
-            orient=tk.HORIZONTAL,
-            bg=DarkTheme.BORDER,
-            sashwidth=5,
-            sashrelief="flat",
+        # A. Sol Dikey Aktivite Çubuğu (~50px genişlik)
+        self._build_activity_bar(self.workspace_frame)
+
+        # B. Açılır/Kapanır Sol Çekmece (Varlıklar, Projeler, Senkronizasyon)
+        self._build_left_drawer(self.workspace_frame)
+
+        # C. Açılır/Kapanır Sağ Çekmece (AI Danışmanı)
+        self._build_right_drawer(self.workspace_frame)
+
+        # D. Merkezi Viewport & Tuval Alanı (Kalan tüm genişliği doldurur)
+        self._build_central_canvas(self.workspace_frame)
+
+        # İlk çekmece görünümünü ayarla
+        self._show_left_drawer_view("assets")
+        self._update_activity_bar_buttons()
+
+    def _build_activity_bar(self, parent: tk.Widget) -> None:
+        """Sol aktivite çubuğunu (~56px) oluşturur (VS Code / Blender Studio stili)."""
+        self.activity_bar = tk.Frame(parent, bg="#070b14", width=56, bd=1, relief="ridge")
+        self.activity_bar.pack(side=tk.LEFT, fill=tk.Y)
+        self.activity_bar.pack_propagate(False)
+
+        tk.Label(self.activity_bar, text="⚡", bg="#070b14", fg=DarkTheme.ACCENT_CYAN, font=(DarkTheme.FONT_FAMILY, 14, "bold"), pady=8).pack(fill=tk.X)
+
+        self._act_buttons = {}
+
+        def make_act_btn(key: str, icon: str, short_lbl: str, cmd):
+            btn = tk.Button(
+                self.activity_bar,
+                text=f"{icon}\n{short_lbl}",
+                bg="#070b14",
+                fg=DarkTheme.TEXT_MUTED,
+                activebackground=DarkTheme.BG_INPUT,
+                activeforeground=DarkTheme.ACCENT_CYAN,
+                font=(DarkTheme.FONT_FAMILY, 7, "bold"),
+                relief="flat",
+                bd=0,
+                pady=6,
+                cursor="hand2",
+                command=cmd,
+            )
+            btn.pack(fill=tk.X, pady=2)
+            self._act_buttons[key] = btn
+            return btn
+
+        make_act_btn("projects", "📁", "Projeler", lambda: self._toggle_left_drawer("projects"))
+        make_act_btn("assets", "🎨", "Varlıklar", lambda: self._toggle_left_drawer("assets"))
+        make_act_btn("ai", "🤖", "AI Danışman", self._toggle_right_drawer)
+        make_act_btn("sync", "🔄", "Ayarlar", lambda: self._toggle_left_drawer("sync"))
+
+    def _build_left_drawer(self, parent: tk.Widget) -> None:
+        """Açılır/kapanır sol çekmeceyi inşa eder."""
+        self.left_drawer = tk.Frame(parent, bg=DarkTheme.BG_CARD, width=390, bd=1, relief="ridge")
+        self.left_drawer.pack(side=tk.LEFT, fill=tk.Y)
+        self.left_drawer.pack_propagate(False)
+
+        # Çekmece Üst Başlık Çubuğu & Kapat Butonu
+        d_hdr = tk.Frame(self.left_drawer, bg=DarkTheme.BG_CARD, padx=10, pady=8)
+        d_hdr.pack(fill=tk.X)
+
+        self.lbl_drawer_title = tk.Label(
+            d_hdr,
+            text="🎨 Varlık Rafı",
+            bg=DarkTheme.BG_CARD,
+            fg=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 11, "bold"),
         )
-        main_paned.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.lbl_drawer_title.pack(side=tk.LEFT)
 
-        # -------------------------------------------------------------
-        # SOL SÜTUN: PROJELER & VARLIK RAFI
-        # -------------------------------------------------------------
-        left_container = tk.Frame(main_paned, bg=DarkTheme.BG_CARD, padx=8, pady=8)
-        main_paned.add(left_container, minsize=380, width=460)
-
-        left_paned = tk.PanedWindow(
-            left_container,
-            orient=tk.VERTICAL,
-            bg=DarkTheme.BORDER,
-            sashwidth=4,
-            sashrelief="flat",
+        btn_close_left = tk.Button(
+            d_hdr,
+            text="✕",
+            bg=DarkTheme.BG_CARD,
+            fg=DarkTheme.TEXT_MUTED,
+            activebackground=DarkTheme.BG_INPUT,
+            activeforeground="#ef4444",
+            font=(DarkTheme.FONT_FAMILY, 10, "bold"),
+            relief="flat",
+            bd=0,
+            padx=6,
+            cursor="hand2",
+            command=self._close_left_drawer,
         )
-        left_paned.pack(fill=tk.BOTH, expand=True)
+        btn_close_left.pack(side=tk.RIGHT)
 
-        # 1. Üst Kısım: Projeler Listesi
-        p_box = tk.Frame(left_paned, bg=DarkTheme.BG_CARD)
-        left_paned.add(p_box, minsize=180, height=220)
+        # 3 Farklı Çekmece Görünümü
+        self.drawer_assets_view = tk.Frame(self.left_drawer, bg=DarkTheme.BG_CARD, padx=8, pady=4)
+        self.drawer_projects_view = tk.Frame(self.left_drawer, bg=DarkTheme.BG_CARD, padx=8, pady=4)
+        self.drawer_sync_view = tk.Frame(self.left_drawer, bg=DarkTheme.BG_CARD, padx=10, pady=8)
 
-        p_header = tk.Frame(p_box, bg=DarkTheme.BG_CARD)
-        p_header.pack(fill=tk.X, pady=(0, 6))
+        self._setup_assets_drawer_view(self.drawer_assets_view)
+        self._setup_projects_drawer_view(self.drawer_projects_view)
+        self._setup_sync_drawer_view(self.drawer_sync_view)
+
+    def _setup_assets_drawer_view(self, parent: tk.Frame) -> None:
+        """Varlık çekmecesi: Sürükle-bırak dropzone, kategori çipleri, tablo ve açma butonları."""
+        drop_card = tk.Frame(parent, bg=DarkTheme.BG_INPUT, padx=8, pady=8, bd=1, relief="ridge")
+        drop_card.pack(fill=tk.X, pady=(0, 6))
 
         tk.Label(
-            p_header,
-            text="📂 Oyun Projeleri",
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 11, "bold"),
+            drop_card,
+            text="📥 Sürükle & Bırak veya Dosya Ekle\n(3D Mesh, 2D Görsel, Sprite, Aseprite)",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8, "bold"),
+            justify=tk.LEFT,
         ).pack(side=tk.LEFT)
 
-        p_btn_bar = tk.Frame(p_box, bg=DarkTheme.BG_CARD)
+        ttk.Button(
+            drop_card,
+            text="📁 Dosya Ekle",
+            style="Primary.TButton",
+            command=self._quick_add_asset_dialog,
+        ).pack(side=tk.RIGHT, padx=2)
+
+        # Kategori Filtre Çipleri
+        chips_frame = tk.Frame(parent, bg=DarkTheme.BG_CARD)
+        chips_frame.pack(fill=tk.X, pady=(0, 6))
+
+        chip_names = ["Tümü", "2D Sprite", "Animasyon", "Karakter", "Çevre", "Prop", "Araç"]
+        self._chip_buttons = {}
+        for cat in chip_names:
+            btn = tk.Button(
+                chips_frame,
+                text=cat,
+                bg="#0891b2" if cat == "Tümü" else DarkTheme.BG_INPUT,
+                fg="#ffffff" if cat == "Tümü" else DarkTheme.TEXT_MUTED,
+                activebackground="#0891b2",
+                activeforeground="#ffffff",
+                font=(DarkTheme.FONT_FAMILY, 8, "bold" if cat == "Tümü" else "normal"),
+                relief="flat",
+                padx=5,
+                pady=2,
+                cursor="hand2",
+                command=lambda c=cat: self._on_category_chip_clicked(c),
+            )
+            btn.pack(side=tk.LEFT, padx=1, pady=1)
+            self._chip_buttons[cat] = btn
+
+        # Geriye dönük uyumluluk için combobox ve StringVar
+        self.blend_cat_filter_var = tk.StringVar(value="Tümü")
+        self.blend_cat_combo = ttk.Combobox(
+            parent,
+            textvariable=self.blend_cat_filter_var,
+            values=["Tümü", "2D Sprite / Piksel Sanatı", "Animasyon", "Karakter", "Çevre/Level", "Prop", "Araç", "VFX/Diğer", "Genel"],
+            state="readonly",
+            height=6,
+        )
+
+        # Tablo Çerçevesi
+        b_table_frame = tk.Frame(parent, bg=DarkTheme.BG_CARD)
+        b_table_frame.pack(fill=tk.BOTH, expand=True)
+
+        b_cols = ("name", "category", "format", "size", "modified", "status", "path")
+        self.blend_tree = ttk.Treeview(b_table_frame, columns=b_cols, show="headings", selectmode="browse")
+        self.blend_tree.heading("name", text="Varlık")
+        self.blend_tree.heading("category", text="Kategori")
+        self.blend_tree.heading("format", text="Format")
+        self.blend_tree.heading("size", text="Boyut")
+        self.blend_tree.heading("modified", text="Değişiklik")
+        self.blend_tree.heading("status", text="Durum")
+        self.blend_tree.heading("path", text="Dosya Yolu")
+
+        self.blend_tree.column("name", width=110)
+        self.blend_tree.column("category", width=80)
+        self.blend_tree.column("format", width=65, anchor=tk.CENTER)
+        self.blend_tree.column("size", width=55, anchor=tk.E)
+        self.blend_tree.column("modified", width=85)
+        self.blend_tree.column("status", width=65, anchor=tk.CENTER)
+        self.blend_tree.column("path", width=100)
+
+        b_scroll = ttk.Scrollbar(b_table_frame, orient=tk.VERTICAL, command=self.blend_tree.yview)
+        self.blend_tree.configure(yscrollcommand=b_scroll.set)
+        self.blend_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        b_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.blend_tree.bind("<<TreeviewSelect>>", self._on_blend_selected)
+        self.blend_tree.bind("<Double-1>", lambda e: self._open_selected_blend())
+
+        # Sağ Tık Bağlam Menüsü
+        self.blend_tree_menu = tk.Menu(self.root, tearoff=0, bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN)
+        self.blend_tree_menu.add_command(label="🧊 Blender ile Aç", command=self._open_selected_blend)
+        self.blend_tree_menu.add_command(label="🎨 Aseprite ile Aç", command=self._open_selected_aseprite)
+        self.blend_tree_menu.add_separator()
+        self.blend_tree_menu.add_command(label="🗑️ Projeden Kaldır", command=self._remove_selected_blend)
+
+        def _on_tree_right_click(event: tk.Event) -> None:
+            row_id = self.blend_tree.identify_row(event.y)
+            if row_id:
+                self.blend_tree.selection_set(row_id)
+                self._on_blend_selected()
+                try:
+                    self.blend_tree_menu.post(event.x_root, event.y_root)
+                except Exception:
+                    pass
+
+        self.blend_tree.bind("<Button-3>", _on_tree_right_click)
+
+        # Varlık Hızlı Butonları
+        a_btns = tk.Frame(parent, bg=DarkTheme.BG_CARD)
+        a_btns.pack(fill=tk.X, pady=(6, 2))
+
+        ttk.Button(a_btns, text="🧊 Blender", style="Success.TButton", command=self._open_selected_blend).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(a_btns, text="🎨 Aseprite", style="Primary.TButton", command=self._open_selected_aseprite).pack(side=tk.LEFT, padx=2)
+        ttk.Button(a_btns, text="🗑️ Kaldır", style="Secondary.TButton", command=self._remove_selected_blend).pack(side=tk.LEFT, padx=2)
+        ttk.Button(a_btns, text="🔄 Yenile", style="Secondary.TButton", command=self._refresh_blend_table).pack(side=tk.RIGHT, padx=(2, 0))
+
+    def _setup_projects_drawer_view(self, parent: tk.Frame) -> None:
+        """Proje yönetimi görünümü."""
+        p_btn_bar = tk.Frame(parent, bg=DarkTheme.BG_CARD)
         p_btn_bar.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Button(p_btn_bar, text="➕ Yeni", style="Primary.TButton", command=self._open_new_project_modal).pack(side=tk.LEFT, padx=(0, 4))
-        ttk.Button(p_btn_bar, text="✏️ Düzenle", style="Secondary.TButton", command=self._open_edit_project_modal).pack(side=tk.LEFT, padx=3)
-        ttk.Button(p_btn_bar, text="🌟 Aktif Yap", style="Success.TButton", command=self._set_selected_as_active).pack(side=tk.LEFT, padx=3)
-        ttk.Button(p_btn_bar, text="🗑️ Sil", style="Secondary.TButton", command=self._delete_selected_project).pack(side=tk.LEFT, padx=3)
+        ttk.Button(p_btn_bar, text="➕ Yeni", style="Primary.TButton", command=self._open_new_project_modal).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(p_btn_bar, text="✏️ Düzenle", style="Secondary.TButton", command=self._open_edit_project_modal).pack(side=tk.LEFT, padx=2)
+        ttk.Button(p_btn_bar, text="🌟 Aktif", style="Success.TButton", command=self._set_selected_as_active).pack(side=tk.LEFT, padx=2)
+        ttk.Button(p_btn_bar, text="🗑️ Sil", style="Secondary.TButton", command=self._delete_selected_project).pack(side=tk.RIGHT)
 
-        p_table_frame = tk.Frame(p_box, bg=DarkTheme.BG_CARD)
+        p_table_frame = tk.Frame(parent, bg=DarkTheme.BG_CARD)
         p_table_frame.pack(fill=tk.BOTH, expand=True)
 
         p_cols = ("status", "name", "engine", "genre", "blends")
@@ -415,10 +591,10 @@ class GameDesignerApp:
         self.projects_tree.heading("blends", text="Varlık")
 
         self.projects_tree.column("status", width=55, anchor=tk.CENTER)
-        self.projects_tree.column("name", width=140)
-        self.projects_tree.column("engine", width=80)
-        self.projects_tree.column("genre", width=80)
-        self.projects_tree.column("blends", width=55, anchor=tk.CENTER)
+        self.projects_tree.column("name", width=125)
+        self.projects_tree.column("engine", width=75)
+        self.projects_tree.column("genre", width=75)
+        self.projects_tree.column("blends", width=50, anchor=tk.CENTER)
 
         p_scroll = ttk.Scrollbar(p_table_frame, orient=tk.VERTICAL, command=self.projects_tree.yview)
         self.projects_tree.configure(yscrollcommand=p_scroll.set)
@@ -428,148 +604,27 @@ class GameDesignerApp:
         self.projects_tree.bind("<<TreeviewSelect>>", self._on_project_selected)
         self.projects_tree.bind("<Double-1>", lambda e: self._set_selected_as_active())
 
-        # 2. Alt Kısım: Varlık Rafı (Asset Shelf) & Sürükle-Bırak Alanı
-        a_box = tk.Frame(left_paned, bg=DarkTheme.BG_CARD, pady=4)
-        left_paned.add(a_box, minsize=260)
-
-        # Sürükle-Bırak & Tek Tıkla Ekleme Çubuğu
-        drop_banner = tk.Frame(a_box, bg=DarkTheme.BG_INPUT, padx=8, pady=8, relief="ridge", bd=1)
-        drop_banner.pack(fill=tk.X, pady=(0, 6))
-
-        tk.Label(
-            drop_banner,
-            text="📥 Sürükle & Bırak veya Tek Tıkla Ekle (3D, 2D Görsel, Aseprite)",
-            bg=DarkTheme.BG_INPUT,
-            fg=DarkTheme.ACCENT_CYAN,
-            font=(DarkTheme.FONT_FAMILY, 9, "bold"),
-        ).pack(side=tk.LEFT)
-
-        ttk.Button(
-            drop_banner,
-            text="⚡ Dosya Seç & Ekle",
-            style="Primary.TButton",
-            command=self._quick_add_asset_dialog,
-        ).pack(side=tk.RIGHT)
-
-        # Varlık Kontrolleri & Kategori Filtresi
-        a_ctrl_bar = tk.Frame(a_box, bg=DarkTheme.BG_CARD)
-        a_ctrl_bar.pack(fill=tk.X, pady=(0, 6))
-
-        ttk.Button(a_ctrl_bar, text="🚀 Blender ile Aç", style="Success.TButton", command=self._open_selected_blend).pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(a_ctrl_bar, text="🎨 Aseprite ile Aç", style="Primary.TButton", command=self._open_selected_aseprite).pack(side=tk.LEFT, padx=3)
-        ttk.Button(a_ctrl_bar, text="🗑️ Kaldır", style="Secondary.TButton", command=self._remove_selected_blend).pack(side=tk.LEFT, padx=3)
-        ttk.Button(a_ctrl_bar, text="🔄 Yenile", style="Secondary.TButton", command=self._refresh_blend_table).pack(side=tk.LEFT, padx=3)
-
-        tk.Label(a_ctrl_bar, text="Filtre:", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 9)).pack(side=tk.LEFT, padx=(8, 2))
-        self.blend_cat_filter_var = tk.StringVar(value="Tümü")
-        self.blend_cat_combo = ttk.Combobox(
-            a_ctrl_bar,
-            textvariable=self.blend_cat_filter_var,
-            values=["Tümü", "2D Sprite / Piksel Sanatı", "Animasyon", "Karakter", "Çevre/Level", "Prop", "Araç", "VFX/Diğer", "Genel"],
-            state="readonly",
-            width=14,
-        )
-        self.blend_cat_combo.pack(side=tk.LEFT, padx=2)
-        self.blend_cat_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_blend_table())
-
-        # Varlık Tablosu (Treeview)
-        b_table_frame = tk.Frame(a_box, bg=DarkTheme.BG_CARD)
-        b_table_frame.pack(fill=tk.BOTH, expand=True)
-
-        b_cols = ("name", "category", "size", "modified", "status", "path")
-        self.blend_tree = ttk.Treeview(b_table_frame, columns=b_cols, show="headings", selectmode="browse")
-        self.blend_tree.heading("name", text="Varlık Adı")
-        self.blend_tree.heading("category", text="Kategori (Otomatik)")
-        self.blend_tree.heading("size", text="Boyut")
-        self.blend_tree.heading("modified", text="Değişiklik")
-        self.blend_tree.heading("status", text="Durum")
-        self.blend_tree.heading("path", text="Dosya Yolu")
-
-        self.blend_tree.column("name", width=130)
-        self.blend_tree.column("category", width=95)
-        self.blend_tree.column("size", width=65, anchor=tk.E)
-        self.blend_tree.column("modified", width=105)
-        self.blend_tree.column("status", width=65, anchor=tk.CENTER)
-        self.blend_tree.column("path", width=150)
-
-        b_scroll = ttk.Scrollbar(b_table_frame, orient=tk.VERTICAL, command=self.blend_tree.yview)
-        self.blend_tree.configure(yscrollcommand=b_scroll.set)
-        self.blend_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        b_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.blend_tree.bind("<<TreeviewSelect>>", self._on_blend_selected)
-        self.blend_tree.bind("<Double-1>", lambda e: self._open_selected_blend())
-
-        # -------------------------------------------------------------
-        # SAĞ SÜTUN: 3D VIEWPORT (ÜST) + HIZLI AI DANIŞMANI (ALT)
-        # -------------------------------------------------------------
-        right_container = tk.Frame(main_paned, bg=DarkTheme.BG_DARK)
-        main_paned.add(right_container, minsize=540)
-
-        right_paned = tk.PanedWindow(
-            right_container,
-            orient=tk.VERTICAL,
-            bg=DarkTheme.BORDER,
-            sashwidth=5,
-            sashrelief="flat",
-        )
-        right_paned.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
-
-        # 1. SAĞ ÜST: ETKİLEŞİMLİ 3D VIEWPORT & ASSET INSPECTOR
-        vp_section = tk.Frame(right_paned, bg=DarkTheme.BG_DARK)
-        right_paned.add(vp_section, minsize=260, height=360)
-
-        # Viewport başlık çubuğu & Araçlar
-        vp_header = tk.Frame(vp_section, bg=DarkTheme.BG_DARK)
-        vp_header.pack(fill=tk.X, pady=(0, 4))
-
-        tk.Label(
-            vp_header,
-            text="👁️ 3D / Görsel Önizleme Viewport",
-            bg=DarkTheme.BG_DARK,
-            fg=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 11, "bold"),
-        ).pack(side=tk.LEFT)
-
-        ttk.Button(vp_header, text="🎯 Sıfırla", style="Secondary.TButton", command=self._reset_viewport_camera).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(vp_header, text="📷 / 📐 Mod", style="Secondary.TButton", command=self._toggle_viewport_mode).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(vp_header, text="🔄 3D Çevir", style="Secondary.TButton", command=self._toggle_viewport_spin).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(vp_header, text="👾 Piksel/Yumuşak", style="Secondary.TButton", command=self._toggle_viewport_scaling).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(vp_header, text="▶️ / ⏸️", style="Secondary.TButton", command=self._toggle_viewport_animation).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(vp_header, text="⏭️", style="Secondary.TButton", command=self._next_viewport_frame).pack(side=tk.RIGHT, padx=1)
-        ttk.Button(vp_header, text="⏮️", style="Secondary.TButton", command=self._prev_viewport_frame).pack(side=tk.RIGHT, padx=1)
-
-        # Viewport + Yan Inspector Paneli
-        vp_content = tk.Frame(vp_section, bg=DarkTheme.BG_CARD)
-        vp_content.pack(fill=tk.BOTH, expand=True)
-
-        # 3D Canvas
-        self.viewport_3d = Viewport3DCanvas(vp_content, bg=DarkTheme.BG_DARK)
-        self.viewport_3d.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Yan Inspector Bilgi Kartı
+        # Proje Detay Kartı
         self.detail_card = tk.LabelFrame(
-            vp_content,
-            text=" 📌 Varlık & Proje Bilgisi ",
+            parent,
+            text=" 📌 Seçili Proje ",
             bg=DarkTheme.BG_CARD,
             fg=DarkTheme.ACCENT_CYAN,
             font=(DarkTheme.FONT_FAMILY, 9, "bold"),
-            padx=10,
-            pady=6,
+            padx=8,
+            pady=4,
             relief="groove",
-            width=260,
         )
-        self.detail_card.pack(side=tk.RIGHT, fill=tk.Y, padx=(4, 0))
-        self.detail_card.pack_propagate(False)
+        self.detail_card.pack(fill=tk.X, pady=(6, 0))
 
         self.lbl_proj_title = tk.Label(
             self.detail_card,
             text="Henüz proje seçilmedi",
             bg=DarkTheme.BG_CARD,
             fg=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 10, "bold"),
+            font=(DarkTheme.FONT_FAMILY, 9, "bold"),
             anchor=tk.W,
-            wraplength=230,
+            wraplength=350,
         )
         self.lbl_proj_title.pack(fill=tk.X)
 
@@ -581,7 +636,7 @@ class GameDesignerApp:
             font=(DarkTheme.FONT_FAMILY, 8),
             anchor=tk.W,
         )
-        self.lbl_proj_meta.pack(fill=tk.X, pady=1)
+        self.lbl_proj_meta.pack(fill=tk.X)
 
         self.lbl_proj_desc = tk.Label(
             self.detail_card,
@@ -591,67 +646,327 @@ class GameDesignerApp:
             font=(DarkTheme.FONT_FAMILY, 8),
             anchor=tk.W,
             justify=tk.LEFT,
-            wraplength=230,
+            wraplength=350,
         )
-        self.lbl_proj_desc.pack(fill=tk.X, pady=2)
+        self.lbl_proj_desc.pack(fill=tk.X)
 
-        # Varlık Özellikleri Alt Bölümü
-        tk.Label(self.detail_card, text="--- Seçili 3D Varlık ---", bg=DarkTheme.BG_CARD, fg=DarkTheme.BORDER, font=(DarkTheme.FONT_FAMILY, 8)).pack(fill=tk.X, pady=(4, 2))
         self.lbl_asset_inspector = tk.Label(
             self.detail_card,
-            text="Tablodan bir varlığa tıklayarak\nönizleme ve detayları inceleyin.",
+            text="",
             bg=DarkTheme.BG_CARD,
             fg=DarkTheme.ACCENT_CYAN,
             font=(DarkTheme.FONT_FAMILY, 8),
-            justify=tk.LEFT,
             anchor=tk.W,
-            wraplength=230,
+            justify=tk.LEFT,
+            wraplength=350,
         )
-        self.lbl_asset_inspector.pack(fill=tk.X, pady=2)
 
-        # 2. SAĞ ALT: AI GAME DESIGN ADVISOR (HIZLI & STREAMING)
-        ai_section = tk.Frame(right_paned, bg=DarkTheme.BG_DARK)
-        right_paned.add(ai_section, minsize=240)
+    def _setup_sync_drawer_view(self, parent: tk.Frame) -> None:
+        """Senkronizasyon ve sistem durumu görünümü."""
+        tk.Label(
+            parent,
+            text="Jarvis İki Yönlü Eşzamanlılık",
+            bg=DarkTheme.BG_CARD,
+            fg=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 10, "bold"),
+        ).pack(anchor=tk.W, pady=(0, 8))
 
-        ai_header = tk.Frame(ai_section, bg=DarkTheme.BG_DARK)
-        ai_header.pack(fill=tk.X, pady=(0, 4))
+        self.lbl_sync_active = tk.Label(parent, text="• Aktif Proje: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.SUCCESS, font=(DarkTheme.FONT_FAMILY, 9, "bold"), anchor=tk.W)
+        self.lbl_sync_active.pack(fill=tk.X, pady=2)
+
+        self.lbl_sync_p_count = tk.Label(parent, text="• Toplam Proje: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9), anchor=tk.W)
+        self.lbl_sync_p_count.pack(fill=tk.X, pady=2)
+
+        self.lbl_sync_b_count = tk.Label(parent, text="• Toplam Varlık Dosyası: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9), anchor=tk.W)
+        self.lbl_sync_b_count.pack(fill=tk.X, pady=2)
+
+        self.lbl_sync_chroma = tk.Label(parent, text="• Vektör Veritabanı: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9), anchor=tk.W)
+        self.lbl_sync_chroma.pack(fill=tk.X, pady=2)
+
+        p_dir = str(self.settings.projects_dir.resolve())
+        self.lbl_sync_path = tk.Label(parent, text=f"• Konum: {p_dir}", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 8), anchor=tk.W, wraplength=350, justify=tk.LEFT)
+        self.lbl_sync_path.pack(fill=tk.X, pady=4)
+
+        desktop_lnk = str((get_desktop_path() / "Jarvis Game Designer.lnk").resolve())
+        self.lbl_sync_lnk = tk.Label(parent, text=f"• Kısayol: {desktop_lnk}", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 8), anchor=tk.W, wraplength=350, justify=tk.LEFT)
+        self.lbl_sync_lnk.pack(fill=tk.X, pady=2)
+
+        btn_box = tk.Frame(parent, bg=DarkTheme.BG_CARD)
+        btn_box.pack(fill=tk.X, pady=(16, 0))
+
+        ttk.Button(btn_box, text="📁 Projeler Klasörü", style="Primary.TButton", command=self._open_projects_folder).pack(fill=tk.X, pady=3)
+        ttk.Button(btn_box, text="🖥️ Masaüstü Kısayolu", style="Secondary.TButton", command=self._create_or_refresh_shortcut).pack(fill=tk.X, pady=3)
+        ttk.Button(btn_box, text="🔄 Durumu Yeniden Eşitle", style="Success.TButton", command=self._refresh_all_data).pack(fill=tk.X, pady=3)
+
+    def _build_central_canvas(self, parent: tk.Widget) -> None:
+        """Merkezi tam ekran tuval alanı ve yüzen HUD pill araç çubuğu."""
+        self.center_area = tk.Frame(parent, bg=DarkTheme.BG_DARK)
+        self.center_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # 3D & 2D Etkileşimli Canvas
+        self.viewport_3d = Viewport3DCanvas(self.center_area, bg=DarkTheme.BG_DARK)
+        self.viewport_3d.pack(fill=tk.BOTH, expand=True)
+        self.viewport_3d.on_anim_state_change = lambda is_anim: getattr(self, "btn_hud_play", None) and self.btn_hud_play.config(text="⏸" if is_anim else "▶")
+
+        # Yüzen HUD Pill Araç Çubuğu (Floating HUD Pill Toolbar)
+        self.hud_pill = tk.Frame(self.center_area, bg="#0d172c", bd=1, relief="ridge", padx=10, pady=5)
+        self.hud_pill.place(relx=0.5, y=14, anchor="n")
+
+        # 2D Kontrolleri
+        self.hud_2d_frame = tk.Frame(self.hud_pill, bg="#0d172c")
+
+        self.btn_hud_zoom = tk.Button(
+            self.hud_2d_frame,
+            text="🔍 1:1 / Sığdır",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            activebackground=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._toggle_viewport_zoom,
+        )
+        self.btn_hud_zoom.pack(side=tk.LEFT, padx=2)
+
+        self.btn_hud_scale = tk.Button(
+            self.hud_2d_frame,
+            text="👾 Piksel / Smooth",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            activebackground=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._toggle_viewport_scaling,
+        )
+        self.btn_hud_scale.pack(side=tk.LEFT, padx=2)
+
+        self.btn_hud_open_ase = tk.Button(
+            self.hud_2d_frame,
+            text="🎨 Aseprite ile Aç",
+            bg="#0891b2",
+            fg="#ffffff",
+            activebackground="#0e7490",
+            font=(DarkTheme.FONT_FAMILY, 8, "bold"),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._open_selected_aseprite,
+        )
+        self.btn_hud_open_ase.pack(side=tk.LEFT, padx=2)
+
+        self.hud_anim_frame = tk.Frame(self.hud_2d_frame, bg="#0d172c")
+        self.btn_hud_play = tk.Button(
+            self.hud_anim_frame,
+            text="▶/⏸",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8, "bold"),
+            relief="flat",
+            padx=5,
+            pady=3,
+            cursor="hand2",
+            command=self._toggle_viewport_animation,
+        )
+        self.btn_hud_play.pack(side=tk.LEFT, padx=1)
+
+        tk.Button(
+            self.hud_anim_frame,
+            text="◀",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=4,
+            pady=3,
+            cursor="hand2",
+            command=self._prev_viewport_frame,
+        ).pack(side=tk.LEFT, padx=1)
+
+        tk.Button(
+            self.hud_anim_frame,
+            text="▶",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=4,
+            pady=3,
+            cursor="hand2",
+            command=self._next_viewport_frame,
+        ).pack(side=tk.LEFT, padx=1)
+        self.hud_anim_frame.pack(side=tk.LEFT, padx=4)
+
+        # 3D Kontrolleri
+        self.hud_3d_frame = tk.Frame(self.hud_pill, bg="#0d172c")
+
+        self.btn_hud_render_style = tk.Button(
+            self.hud_3d_frame,
+            text="💡 Gölgeli / 📐 Tel Kafes",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            activebackground=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._toggle_viewport_render_style,
+        )
+        self.btn_hud_render_style.pack(side=tk.LEFT, padx=2)
+
+        self.btn_hud_spin = tk.Button(
+            self.hud_3d_frame,
+            text="🔄 Otomatik Döndür",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            activebackground=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._toggle_viewport_spin,
+        )
+        self.btn_hud_spin.pack(side=tk.LEFT, padx=2)
+
+        self.btn_hud_reset = tk.Button(
+            self.hud_3d_frame,
+            text="🎯 Sıfırla",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MAIN,
+            activebackground=DarkTheme.BORDER,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._reset_viewport_camera,
+        )
+        self.btn_hud_reset.pack(side=tk.LEFT, padx=2)
+
+        self.btn_hud_open_blend = tk.Button(
+            self.hud_3d_frame,
+            text="🧊 Blender ile Aç",
+            bg="#10b981",
+            fg="#021526",
+            activebackground="#059669",
+            font=(DarkTheme.FONT_FAMILY, 8, "bold"),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._open_selected_blend,
+        )
+        self.btn_hud_open_blend.pack(side=tk.LEFT, padx=2)
+
+        # Mod Değiştirme Butonu
+        tk.Button(
+            self.hud_pill,
+            text="📷/📐 Mod",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.TEXT_MUTED,
+            activebackground=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8),
+            relief="flat",
+            padx=6,
+            pady=3,
+            cursor="hand2",
+            command=self._toggle_viewport_mode,
+        ).pack(side=tk.RIGHT, padx=2)
+
+        # Sol Altta Yüzen Varlık Bilgi Rozeti
+        self.hud_info_badge = tk.Frame(self.center_area, bg="#091122", bd=1, relief="ridge", padx=10, pady=5)
+        self.hud_info_badge.place(x=16, rely=1.0, y=-16, anchor="sw")
+
+        self.lbl_hud_badge = tk.Label(
+            self.hud_info_badge,
+            text="🔷 Sahne Hazır",
+            bg="#091122",
+            fg=DarkTheme.ACCENT_CYAN,
+            font=(DarkTheme.FONT_FAMILY, 8, "bold"),
+        )
+        self.lbl_hud_badge.pack(side=tk.LEFT)
+
+    def _build_right_drawer(self, parent: tk.Widget) -> None:
+        """Açılır/kapanır sağ AI Danışmanı çekmecesini oluşturur."""
+        self.right_drawer = tk.Frame(parent, bg=DarkTheme.BG_CARD, width=420, bd=1, relief="ridge")
+        self.right_drawer.pack_propagate(False)
+
+        # Üst Başlık Çubuğu & Kapat Butonu
+        r_hdr = tk.Frame(self.right_drawer, bg=DarkTheme.BG_CARD, padx=10, pady=8)
+        r_hdr.pack(fill=tk.X)
 
         tk.Label(
-            ai_header,
-            text="⚡ AI Tasarım Danışmanı (Hızlı Streaming RAG)",
-            bg=DarkTheme.BG_DARK,
-            fg=DarkTheme.TEXT_MAIN,
+            r_hdr,
+            text="🤖 AI Tasarım Danışmanı",
+            bg=DarkTheme.BG_CARD,
+            fg=DarkTheme.ACCENT_CYAN,
             font=(DarkTheme.FONT_FAMILY, 11, "bold"),
         ).pack(side=tk.LEFT)
 
         self.lbl_confidence = tk.Label(
-            ai_header,
+            r_hdr,
             text="Güvenilirlik: -",
             bg=DarkTheme.BG_INPUT,
             fg=DarkTheme.ACCENT_CYAN,
             font=(DarkTheme.FONT_FAMILY, 8, "bold"),
-            padx=8,
+            padx=6,
             pady=2,
+            relief="flat",
         )
-        self.lbl_confidence.pack(side=tk.RIGHT)
+        self.lbl_confidence.pack(side=tk.LEFT, padx=6)
 
-        # Hızlı Aksiyon Çipleri (Quick Action Chips)
-        chips_frame = tk.Frame(ai_section, bg=DarkTheme.BG_DARK)
-        chips_frame.pack(fill=tk.X, pady=(0, 4))
+        btn_close_right = tk.Button(
+            r_hdr,
+            text="✕",
+            bg=DarkTheme.BG_CARD,
+            fg=DarkTheme.TEXT_MUTED,
+            activebackground=DarkTheme.BG_INPUT,
+            activeforeground="#ef4444",
+            font=(DarkTheme.FONT_FAMILY, 10, "bold"),
+            relief="flat",
+            bd=0,
+            padx=6,
+            cursor="hand2",
+            command=self._close_right_drawer,
+        )
+        btn_close_right.pack(side=tk.RIGHT)
 
-        tk.Label(chips_frame, text="Hızlı:", bg=DarkTheme.BG_DARK, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 8)).pack(side=tk.LEFT, padx=(0, 4))
-        self._create_action_chip(chips_frame, "🎮 Mekanik Analiz", "Temel oynanış döngüsü (core gameplay loop) ve karakter kontrollerinin juice/gamelfeel analizi", "analyze_game")
-        self._create_action_chip(chips_frame, "🏃 Animasyon Değerlendirme", "3D karakter ve animasyon geçişlerinde blend tree, kök hareketi (root motion) ve tepki süresi tasarımı", "query")
-        self._create_action_chip(chips_frame, "📜 GDD Taslağı", "Oyun tasarım dökümanı (GDD) ana mekanikler, kamera sistemleri ve ilerleme döngüsü taslağı", "create_gdd")
-        self._create_action_chip(chips_frame, "💡 Fikir Fırtınası", "Bu oyun türü için oyuncuyu bağlayan yenilikçi alt-mekanikler ve sürpriz elementler", "brainstorm")
+        # Aktif Varlık & Proje Bağlam Rozeti
+        self.lbl_ai_context = tk.Label(
+            self.right_drawer,
+            text="🎯 Bağlam: Varlık Seçilmedi",
+            bg=DarkTheme.BG_INPUT,
+            fg=DarkTheme.ACCENT_PURPLE,
+            font=(DarkTheme.FONT_FAMILY, 8, "bold"),
+            padx=8,
+            pady=3,
+            anchor=tk.W,
+        )
+        self.lbl_ai_context.pack(fill=tk.X, padx=8, pady=(0, 6))
 
-        # Girdi ve Mod Seçimi Satırı
-        ai_input_bar = tk.Frame(ai_section, bg=DarkTheme.BG_CARD, padx=8, pady=6)
-        ai_input_bar.pack(fill=tk.X, pady=(0, 4))
+        # Hızlı Aksiyon Çipleri
+        chips_bar = tk.Frame(self.right_drawer, bg=DarkTheme.BG_CARD, padx=8)
+        chips_bar.pack(fill=tk.X, pady=(0, 4))
 
-        self.mode_var = tk.StringVar(value="query")
+        self._create_action_chip(chips_bar, "⚡ Mekanik Analizi", "{asset_name} ({category}) için core gameplay loop, kontroller ve gamefeel juice analizi yap.", "analyze_game")
+        self._create_action_chip(chips_bar, "🏃 Animasyon Yorumu", "{asset_name} için kök hareketi (root motion), blend tree ve tepki süresi animasyon tasarımı.", "query")
+        self._create_action_chip(chips_bar, "📋 GDD", "{project_name} projemiz ve {asset_name} için mekanikler ve ilerleme döngüsü GDD taslağı oluştur.", "create_gdd")
+        self._create_action_chip(chips_bar, "💡 Fikir", "{project_name} projesinde {category} kategorisinde oyuncuyu bağlayan yenilikçi mekanikler türet.", "brainstorm")
+
+        # Mod Seçimi ve Girdi Alanı
+        in_bar = tk.Frame(self.right_drawer, bg=DarkTheme.BG_CARD, padx=8, pady=4)
+        in_bar.pack(fill=tk.X)
+
+        self.mode_var = tk.StringVar(value="query (Soru-Cevap)")
         self.mode_combo = ttk.Combobox(
-            ai_input_bar,
+            in_bar,
             textvariable=self.mode_var,
             values=[
                 "query (Soru-Cevap)",
@@ -664,41 +979,43 @@ class GameDesignerApp:
                 "market_analysis (Pazar Analizi)",
             ],
             state="readonly",
-            width=24,
         )
-        self.mode_combo.pack(side=tk.LEFT, padx=(0, 6))
+        self.mode_combo.pack(fill=tk.X, pady=(0, 4))
 
         self.rag_input_text = tk.Text(
-            ai_input_bar,
+            in_bar,
             bg=DarkTheme.BG_INPUT,
             fg=DarkTheme.TEXT_MAIN,
             insertbackground=DarkTheme.TEXT_MAIN,
             font=(DarkTheme.FONT_FAMILY, 9),
-            height=2,
+            height=3,
             wrap=tk.WORD,
             relief="flat",
         )
-        self.rag_input_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4)
-        self.rag_input_text.insert("1.0", "Karakter zıplama ve duvarda koşma (wall-run) mekaniği oyun hissiyatını nasıl güçlendirir?")
+        self.rag_input_text.pack(fill=tk.X, pady=(0, 4))
+        self.rag_input_text.insert("1.0", "Karakter zıplama ve duvarda koşma mekaniği oyun hissiyatını nasıl güçlendirir?")
+
+        ask_bar = tk.Frame(in_bar, bg=DarkTheme.BG_CARD)
+        ask_bar.pack(fill=tk.X)
 
         self.btn_ask = ttk.Button(
-            ai_input_bar,
+            ask_bar,
             text="⚡ AI'ya Sor",
             style="Primary.TButton",
             command=self._execute_rag_query,
         )
-        self.btn_ask.pack(side=tk.RIGHT, padx=(4, 0))
+        self.btn_ask.pack(side=tk.RIGHT)
 
-        # Çıktı & Kaynaklar Paneli
-        ai_out_paned = tk.PanedWindow(ai_section, orient=tk.HORIZONTAL, bg=DarkTheme.BORDER, sashwidth=4)
-        ai_out_paned.pack(fill=tk.BOTH, expand=True)
+        ttk.Button(ask_bar, text="📋 Kopyala", style="Secondary.TButton", command=self._copy_rag_tab_output).pack(side=tk.LEFT, padx=2)
+        ttk.Button(ask_bar, text="💾 GDD Kaydet", style="Secondary.TButton", command=self._export_gdd_to_file).pack(side=tk.LEFT, padx=2)
 
-        out_text_frame = tk.Frame(ai_out_paned, bg=DarkTheme.BG_CARD)
-        ai_out_paned.add(out_text_frame, minsize=320, width=480)
+        # Yanıt Alanı ve Kaynaklar
+        out_frame = tk.Frame(self.right_drawer, bg=DarkTheme.BG_CARD, padx=8, pady=4)
+        out_frame.pack(fill=tk.BOTH, expand=True)
 
         self.rag_output_text = tk.Text(
-            out_text_frame,
-            bg=DarkTheme.BG_CARD,
+            out_frame,
+            bg=DarkTheme.BG_DARK,
             fg=DarkTheme.TEXT_MAIN,
             font=(DarkTheme.FONT_FAMILY, 9),
             wrap=tk.WORD,
@@ -706,42 +1023,214 @@ class GameDesignerApp:
             padx=8,
             pady=8,
         )
-        out_scroll = ttk.Scrollbar(out_text_frame, orient=tk.VERTICAL, command=self.rag_output_text.yview)
+        out_scroll = ttk.Scrollbar(out_frame, orient=tk.VERTICAL, command=self.rag_output_text.yview)
         self.rag_output_text.configure(yscrollcommand=out_scroll.set)
         self.rag_output_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         out_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        sources_frame = tk.Frame(ai_out_paned, bg=DarkTheme.BG_CARD, padx=4, pady=4)
-        ai_out_paned.add(sources_frame, minsize=140)
+        # Geriye dönük uyumluluk için rag_tab_output_text bağlama
+        self.rag_tab_output_text = self.rag_output_text
 
-        tk.Label(sources_frame, text="📚 Dayanak Kaynaklar", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9, "bold")).pack(anchor=tk.W)
+        # Kaynaklar Paneli
+        src_frame = tk.Frame(self.right_drawer, bg=DarkTheme.BG_CARD, padx=8, pady=2)
+        src_frame.pack(fill=tk.X)
+        tk.Label(src_frame, text="📚 Dayanak Kaynaklar", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 8, "bold")).pack(anchor=tk.W)
+
         self.sources_listbox = tk.Listbox(
-            sources_frame,
+            src_frame,
             bg=DarkTheme.BG_INPUT,
             fg=DarkTheme.TEXT_MAIN,
             selectbackground=DarkTheme.ACCENT_CYAN,
             selectforeground="#021526",
             font=(DarkTheme.FONT_FAMILY, 8),
             relief="flat",
+            height=3,
         )
-        self.sources_listbox.pack(fill=tk.BOTH, expand=True)
+        self.sources_listbox.pack(fill=tk.X, pady=(2, 4))
 
         self.lbl_rag_status = tk.Label(
-            ai_section,
-            text="Hazır. Hızlı çiplere tıklayabilir veya kendi sorunuzu sorabilirsiniz.",
-            bg=DarkTheme.BG_DARK,
+            self.right_drawer,
+            text="Hazır. Hızlı çiplere tıklayabilir veya sorunuzu sorabilirsiniz.",
+            bg=DarkTheme.BG_CARD,
             fg=DarkTheme.TEXT_MUTED,
             font=(DarkTheme.FONT_FAMILY, 8),
             anchor=tk.W,
+            padx=8,
+            pady=2,
         )
-        self.lbl_rag_status.pack(fill=tk.X, pady=(2, 0))
+        self.lbl_rag_status.pack(fill=tk.X)
 
-    def _create_action_chip(self, parent: tk.Widget, label: str, prompt: str, mode: str) -> None:
-        """Hızlı eylem çipi oluşturur."""
+    def _toggle_left_drawer(self, view_name: str) -> None:
+        """Sol çekmeceyi açar, kapatır veya görünümünü değiştirir."""
+        if self._left_drawer_visible and self._active_left_view == view_name:
+            self._close_left_drawer()
+            return
+
+        self._show_left_drawer_view(view_name)
+        if not self._left_drawer_visible:
+            self.left_drawer.pack(side=tk.LEFT, fill=tk.Y, before=self.center_area)
+            self._left_drawer_visible = True
+        self._update_activity_bar_buttons()
+
+    def _close_left_drawer(self) -> None:
+        """Sol çekmeceyi gizler."""
+        if self._left_drawer_visible:
+            self.left_drawer.pack_forget()
+            self._left_drawer_visible = False
+            self._update_activity_bar_buttons()
+
+    def _show_left_drawer_view(self, view_name: str) -> None:
+        """Sol çekmece içindeki görünümü ayarlar."""
+        self._active_left_view = view_name
+        self.drawer_assets_view.pack_forget()
+        self.drawer_projects_view.pack_forget()
+        self.drawer_sync_view.pack_forget()
+
+        if view_name == "assets":
+            self.lbl_drawer_title.config(text="🎨 Varlık Rafı")
+            self.drawer_assets_view.pack(fill=tk.BOTH, expand=True)
+        elif view_name == "projects":
+            self.lbl_drawer_title.config(text="📁 Proje Yöneticisi")
+            self.drawer_projects_view.pack(fill=tk.BOTH, expand=True)
+        elif view_name == "sync":
+            self.lbl_drawer_title.config(text="🔄 Senkronizasyon & Ayarlar")
+            self.drawer_sync_view.pack(fill=tk.BOTH, expand=True)
+
+    def _toggle_right_drawer(self) -> None:
+        """Sağ AI Danışmanı çekmecesini açar veya kapatır."""
+        if self._right_drawer_visible:
+            self._close_right_drawer()
+        else:
+            self.right_drawer.pack(side=tk.RIGHT, fill=tk.Y)
+            self._right_drawer_visible = True
+            self._update_activity_bar_buttons()
+
+    def _close_right_drawer(self) -> None:
+        """Sağ AI Danışmanı çekmecesini gizler."""
+        if self._right_drawer_visible:
+            self.right_drawer.pack_forget()
+            self._right_drawer_visible = False
+            self._update_activity_bar_buttons()
+
+    def _update_activity_bar_buttons(self) -> None:
+        """Aktivite çubuğundaki butonların aktif/pasif stillerini günceller."""
+        if not hasattr(self, "_act_buttons"):
+            return
+
+        for key, btn in self._act_buttons.items():
+            is_active = False
+            if key == "ai":
+                is_active = self._right_drawer_visible
+            else:
+                is_active = (self._left_drawer_visible and self._active_left_view == key)
+
+            if is_active:
+                btn.config(bg=DarkTheme.BG_INPUT, fg=DarkTheme.ACCENT_CYAN)
+            else:
+                btn.config(bg="#070b14", fg=DarkTheme.TEXT_MUTED)
+
+    def _set_category_filter(self, cat: str) -> None:
+        """Kategori filtre çipini ve tablosunu senkronize olarak günceller."""
+        for c_name, btn in getattr(self, "_chip_buttons", {}).items():
+            if c_name == cat:
+                btn.config(bg="#0891b2", fg="#ffffff", font=(DarkTheme.FONT_FAMILY, 8, "bold"))
+            else:
+                btn.config(bg=DarkTheme.BG_INPUT, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 8, "normal"))
+
+        if cat == "2D Sprite":
+            self.blend_cat_filter_var.set("2D Sprite / Piksel Sanatı")
+        elif cat == "Çevre":
+            self.blend_cat_filter_var.set("Çevre/Level")
+        else:
+            self.blend_cat_filter_var.set(cat)
+
+        self._refresh_blend_table()
+
+    def _on_category_chip_clicked(self, cat: str) -> None:
+        """Kategori filtre çipine tıklandığında."""
+        self._set_category_filter(cat)
+
+    def _toggle_viewport_zoom(self) -> None:
+        """1:1 piksel ve sığdırma arasında geçiş yapar."""
+        if hasattr(self, "viewport_3d"):
+            if abs(self.viewport_3d.zoom - 120.0) < 5.0 and self.viewport_3d.pan_x == 0.0 and self.viewport_3d.pan_y == 0.0:
+                self.viewport_3d.zoom_1_to_1()
+            else:
+                self.viewport_3d.zoom_fit()
+            self._update_hud_toolbar()
+
+    def _toggle_viewport_render_style(self) -> None:
+        """Gölgeli ve tel kafes modları arasında geçiş yapar."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.toggle_render_style()
+            self._update_hud_toolbar()
+
+    def _toggle_viewport_scaling(self) -> None:
+        """Piksel ve yumuşak ölçekleme filtresini değiştirir."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.toggle_scaling_filter()
+            self._update_hud_toolbar()
+
+    def _next_viewport_frame(self) -> None:
+        """Sonraki kareye geçer."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.next_frame()
+            self._update_hud_toolbar()
+
+    def _prev_viewport_frame(self) -> None:
+        """Önceki kareye geçer."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.prev_frame()
+            self._update_hud_toolbar()
+
+    def _toggle_viewport_animation(self) -> None:
+        """Animasyonu duraklatır veya oynatır."""
+        if hasattr(self, "viewport_3d"):
+            is_anim = self.viewport_3d.toggle_animation()
+            if hasattr(self, "btn_hud_play"):
+                self.btn_hud_play.config(text="⏸" if is_anim else "▶")
+            self._update_hud_toolbar()
+
+    def _toggle_viewport_spin(self) -> None:
+        """3D sahne turntable döndürmesini açar/kapatır."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.toggle_auto_spin()
+            self._update_hud_toolbar()
+
+    def _reset_viewport_camera(self) -> None:
+        """Kamerayı varsayılana sıfırlar."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.reset_camera()
+            self._update_hud_toolbar()
+
+    def _toggle_viewport_mode(self) -> None:
+        """2D / 3D görünüm modları arasında geçiş yapar."""
+        if hasattr(self, "viewport_3d"):
+            self.viewport_3d.toggle_mode()
+            self._update_hud_toolbar()
+
+    def _create_action_chip(self, parent: tk.Widget, label: str, prompt_template: str, mode: str) -> None:
+        """Hızlı eylem çipi oluşturur (Aktif varlık bağlamı ile zenginleştirilmiş)."""
         def on_click():
+            p_name = self.selected_project.name if self.selected_project else "Oyun Projesi"
+            if self.selected_blend_ref:
+                a_name = self.selected_blend_ref.name
+                a_cat = self.selected_blend_ref.category
+            elif hasattr(self, "viewport_3d") and self.viewport_3d.current_file_path:
+                a_name = self.viewport_3d.current_file_path.name
+                a_cat = self.viewport_3d.current_category or "Genel"
+            else:
+                a_name = "Varlık"
+                a_cat = "Genel"
+
+            final_prompt = prompt_template.format(
+                project_name=p_name,
+                asset_name=a_name,
+                category=a_cat,
+            ) if "{" in prompt_template else prompt_template
+
             self.rag_input_text.delete("1.0", tk.END)
-            self.rag_input_text.insert("1.0", prompt)
-            # Modu güncelle
+            self.rag_input_text.insert("1.0", final_prompt)
             for val in self.mode_combo["values"]:
                 if val.startswith(mode):
                     self.mode_var.set(val)
@@ -758,166 +1247,112 @@ class GameDesignerApp:
             font=(DarkTheme.FONT_FAMILY, 8),
             relief="flat",
             padx=8,
-            pady=2,
+            pady=3,
             cursor="hand2",
             command=on_click,
         )
-        btn.pack(side=tk.LEFT, padx=3)
+        btn.pack(side=tk.LEFT, padx=2, pady=2)
 
-    def _reset_viewport_camera(self) -> None:
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.reset_camera()
+    def _update_hud_toolbar(self) -> None:
+        """HUD araç çubuğunu aktif varlığın 2D / 3D moduna göre günceller."""
+        if not hasattr(self, "viewport_3d") or not hasattr(self, "hud_pill"):
+            return
 
-    def _toggle_viewport_mode(self) -> None:
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.toggle_mode()
+        is_image = (self.viewport_3d.display_mode == "image")
+        if is_image:
+            self.hud_3d_frame.pack_forget()
+            self.hud_2d_frame.pack(side=tk.LEFT)
+            if self.viewport_3d.animation_frames and len(self.viewport_3d.animation_frames) > 1:
+                self.hud_anim_frame.pack(side=tk.LEFT, padx=4)
+                is_anim = self.viewport_3d.is_animating
+                self.btn_hud_play.config(text="⏸" if is_anim else "▶")
+            else:
+                self.hud_anim_frame.pack_forget()
+            scale_label = "👾 Piksel" if self.viewport_3d.scaling_mode == "pixel" else "✨ Yumuşak"
+            self.btn_hud_scale.config(text=scale_label)
 
-    def _toggle_viewport_animation(self) -> None:
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.toggle_animation()
+            # 2D Görünümünde Blender vs Aseprite açma butonu adaptasyonu
+            is_blend = bool(self.viewport_3d.current_format == ".blend")
+            if is_blend:
+                self.btn_hud_open_ase.config(
+                    text="🧊 Blender ile Aç",
+                    bg="#10b981",
+                    activebackground="#059669",
+                    fg="#021526",
+                    command=self._open_selected_blend,
+                )
+            else:
+                self.btn_hud_open_ase.config(
+                    text="🎨 Aseprite ile Aç",
+                    bg="#0891b2",
+                    activebackground="#0e7490",
+                    fg="#ffffff",
+                    command=self._open_selected_aseprite,
+                )
+        else:
+            self.hud_2d_frame.pack_forget()
+            self.hud_3d_frame.pack(side=tk.LEFT)
+            style_label = "💡 Gölgeli" if getattr(self.viewport_3d, "render_style", "shaded") == "shaded" else "📐 Tel Kafes"
+            self.btn_hud_render_style.config(text=style_label)
+            self.btn_hud_spin.config(
+                bg="#0891b2" if self.viewport_3d.auto_spin else DarkTheme.BG_INPUT,
+                fg="#ffffff" if self.viewport_3d.auto_spin else DarkTheme.TEXT_MAIN,
+            )
 
-    def _toggle_viewport_spin(self) -> None:
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.toggle_auto_spin()
+        self._update_hud_info_badge()
 
-    # =========================================================================
-    # SEKME 2: GENİŞLETİLMİŞ TASARIM DANIŞMANI (RAG AI CHAT & GDD STÜDYOSU)
-    # =========================================================================
+    def _update_hud_info_badge(self) -> None:
+        """Sol alttaki varlık rozetini günceller."""
+        if not hasattr(self, "lbl_hud_badge"):
+            return
 
-    def _build_rag_tab(self, parent: ttk.Frame) -> None:
-        """Genişletilmiş RAG AI oyun tasarım danışmanı ve GDD stüdyo çalışma alanını oluşturur."""
-        rag_paned = tk.PanedWindow(parent, orient=tk.HORIZONTAL, bg=DarkTheme.BORDER, sashwidth=5)
-        rag_paned.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        if not self.selected_blend_ref and not getattr(self.viewport_3d, "current_file_path", None):
+            self.lbl_hud_badge.config(text="🔷 Jarvis Game Studio  |  Hazır")
+            return
 
-        # Sol Kontrol ve Prompt Paneli
-        left_ctrl = tk.Frame(rag_paned, bg=DarkTheme.BG_CARD, padx=12, pady=12)
-        rag_paned.add(left_ctrl, minsize=320, width=420)
+        if self.selected_blend_ref:
+            ref = self.selected_blend_ref
+            fname = ref.name
+            cat = ref.category
+            size_txt = ref.file_size_formatted
+        else:
+            p = self.viewport_3d.current_file_path
+            fname = p.name if p else "Sahne"
+            cat = self.viewport_3d.current_category or "Varlık"
+            try:
+                size_txt = format_file_size(p.stat().st_size) if p else "-"
+            except Exception:
+                size_txt = "-"
 
-        tk.Label(
-            left_ctrl,
-            text="🤖 AI Tasarım & GDD Stüdyosu",
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.ACCENT_CYAN,
-            font=(DarkTheme.FONT_FAMILY, 12, "bold"),
-        ).pack(anchor=tk.W, pady=(0, 4))
+        if self.viewport_3d.display_mode == "image" and self.viewport_3d.current_thumbnail_img:
+            dim = f"{self.viewport_3d.current_thumbnail_img.width}x{self.viewport_3d.current_thumbnail_img.height} px"
+            if self.viewport_3d.animation_frames and len(self.viewport_3d.animation_frames) > 1:
+                cur_k = self.viewport_3d.current_frame_index + 1
+                tot_k = len(self.viewport_3d.animation_frames)
+                dim += f" • Kare {cur_k}/{tot_k}"
+        elif self.viewport_3d.bvh_bones:
+            dim = f"{len(self.viewport_3d.bvh_bones)} Kemik İskelet"
+        elif self.viewport_3d.mesh_vertices:
+            style = "Gölgeli" if getattr(self.viewport_3d, "render_style", "shaded") == "shaded" else "Tel Kafes"
+            dim = f"{len(self.viewport_3d.mesh_vertices)} Verts • {len(self.viewport_3d.mesh_faces)} Polys • {style}"
+        else:
+            dim = "3D Sahne"
 
-        tk.Label(
-            left_ctrl,
-            text="Oyun mekanikleri analizi, GDD dökümantasyonu, pazar araştırması ve beyin fırtınası.",
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.TEXT_MUTED,
-            font=(DarkTheme.FONT_FAMILY, 8),
-            wraplength=380,
-            justify=tk.LEFT,
-        ).pack(anchor=tk.W, pady=(0, 10))
-
-        # Mod Seçimi
-        tk.Label(left_ctrl, text="Çalışma Modu:", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9, "bold")).pack(anchor=tk.W)
-        self.rag_tab_mode_var = tk.StringVar(value="analyze_game (MDA Oyun Analizi)")
-        tab_mode_combo = ttk.Combobox(
-            left_ctrl,
-            textvariable=self.rag_tab_mode_var,
-            values=[
-                "analyze_game (MDA Oyun Analizi)",
-                "create_gdd (GDD Taslağı Oluştur)",
-                "advise (Aktif Proje Danışmanlığı)",
-                "brainstorm (Mekanik Beyin Fırtınası)",
-                "compare (Karşılaştırma)",
-                "market_analysis (Pazar Analizi)",
-                "brief (Yönetici Brifingi)",
-                "query (Genel Soru-Cevap)",
-            ],
-            state="readonly",
-        )
-        tab_mode_combo.pack(fill=tk.X, pady=(2, 10))
-
-        # Hızlı Şablonlar
-        tk.Label(left_ctrl, text="Tasarım Konuları / Şablonlar:", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9, "bold")).pack(anchor=tk.W)
-        chips_f = tk.Frame(left_ctrl, bg=DarkTheme.BG_CARD)
-        chips_f.pack(fill=tk.X, pady=(2, 10))
-
-        def set_tab_prompt(txt: str, m: str) -> None:
-            self.rag_tab_prompt_text.delete("1.0", tk.END)
-            self.rag_tab_prompt_text.insert("1.0", txt)
-            for v in tab_mode_combo["values"]:
-                if v.startswith(m):
-                    self.rag_tab_mode_var.set(v)
-                    break
-
-        ttk.Button(chips_f, text="🎮 Karakter Kontrol & Juice", style="Secondary.TButton",
-                   command=lambda: set_tab_prompt("Karakter hareketlerinde coyote time, input buffering ve jump cut mekanikleri nasıl tasarlanır?", "analyze_game")).pack(fill=tk.X, pady=2)
-        ttk.Button(chips_f, text="🏃 Animasyon & Blend Tree", style="Secondary.TButton",
-                   command=lambda: set_tab_prompt("Yürüme, koşma ve zıplama geçişlerinde root motion ve blend tree mimarisi nasıl kurulur?", "query")).pack(fill=tk.X, pady=2)
-        ttk.Button(chips_f, text="📜 Kapsamlı GDD Taslağı", style="Secondary.TButton",
-                   command=lambda: set_tab_prompt("Aktif oyun projemiz için ana oynanış döngüsü, kamera sistemleri ve progression döngüsü GDD taslağı oluştur.", "create_gdd")).pack(fill=tk.X, pady=2)
-        ttk.Button(chips_f, text="💡 Yenilikçi Mekanik Fırtınası", style="Secondary.TButton",
-                   command=lambda: set_tab_prompt("Bu türe özgü, daha önce denenmemiş zaman manipülasyonu veya kanca mekaniği fikirleri üret.", "brainstorm")).pack(fill=tk.X, pady=2)
-
-        # Prompt Giriş Kutusu
-        tk.Label(left_ctrl, text="Tasarım Sorusu / Analiz Konusu:", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 9, "bold")).pack(anchor=tk.W, pady=(6, 2))
-        self.rag_tab_prompt_text = tk.Text(
-            left_ctrl,
-            bg=DarkTheme.BG_INPUT,
-            fg=DarkTheme.TEXT_MAIN,
-            insertbackground=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 9),
-            height=6,
-            wrap=tk.WORD,
-            relief="flat",
-        )
-        self.rag_tab_prompt_text.pack(fill=tk.X, pady=(0, 10))
-        self.rag_tab_prompt_text.insert("1.0", "Karakter hareketlerinde coyote time, input buffering ve jump cut mekanikleri nasıl tasarlanır?")
-
-        btn_run = ttk.Button(
-            left_ctrl,
-            text="⚡ Derinlemesine Analiz Üret",
-            style="Primary.TButton",
-            command=self._execute_rag_tab_query,
-        )
-        btn_run.pack(fill=tk.X, pady=(0, 8))
-
-        # Sağ Sonuç & GDD Çıktı Paneli
-        right_res = tk.Frame(rag_paned, bg=DarkTheme.BG_CARD, padx=12, pady=12)
-        rag_paned.add(right_res, minsize=460)
-
-        out_header = tk.Frame(right_res, bg=DarkTheme.BG_CARD)
-        out_header.pack(fill=tk.X, pady=(0, 8))
-
-        tk.Label(
-            out_header,
-            text="📑 Üretilen Tasarım Analizi & GDD",
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 11, "bold"),
-        ).pack(side=tk.LEFT)
-
-        ttk.Button(out_header, text="📋 Yanıtı Kopyala", style="Secondary.TButton", command=self._copy_rag_tab_output).pack(side=tk.RIGHT, padx=3)
-        ttk.Button(out_header, text="💾 GDD Olarak Kaydet", style="Success.TButton", command=self._export_gdd_to_file).pack(side=tk.RIGHT, padx=3)
-
-        self.rag_tab_output_text = tk.Text(
-            right_res,
-            bg=DarkTheme.BG_DARK,
-            fg=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 10),
-            wrap=tk.WORD,
-            relief="flat",
-            padx=12,
-            pady=12,
-        )
-        tab_out_scroll = ttk.Scrollbar(right_res, orient=tk.VERTICAL, command=self.rag_tab_output_text.yview)
-        self.rag_tab_output_text.configure(yscrollcommand=tab_out_scroll.set)
-        self.rag_tab_output_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        tab_out_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.lbl_hud_badge.config(text=f"🔷 {fname}  •  [{cat}]  •  {dim}  •  {size_txt}")
 
     def _copy_rag_tab_output(self) -> None:
-        text = self.rag_tab_output_text.get("1.0", tk.END).strip()
+        """Tasarım analizi metnini panoya kopyalar."""
+        text = self.rag_output_text.get("1.0", tk.END).strip()
         if text:
             self.root.clipboard_clear()
             self.root.clipboard_append(text)
             messagebox.showinfo("Kopyalandı", "Tasarım analizi panoya kopyalandı.")
 
     def _export_gdd_to_file(self) -> None:
-        text = self.rag_tab_output_text.get("1.0", tk.END).strip()
+        """Tasarım dökümanını dosyaya (.md/.txt) kaydeder."""
+        text = self.rag_output_text.get("1.0", tk.END).strip()
+        if not text and hasattr(self, "rag_tab_output_text") and self.rag_tab_output_text != self.rag_output_text:
+            text = self.rag_tab_output_text.get("1.0", tk.END).strip()
         if not text:
             messagebox.showwarning("Uyarı", "Kaydedilecek analiz metni henüz üretilmedi.")
             return
@@ -935,107 +1370,24 @@ class GameDesignerApp:
                 messagebox.showerror("Hata", f"Dosya kaydedilemedi: {e}")
 
     def _execute_rag_tab_query(self) -> None:
-        prompt = self.rag_tab_prompt_text.get("1.0", tk.END).strip()
-        if not prompt:
-            return
-        mode = self.rag_tab_mode_var.get().split()[0]
-        self.rag_tab_output_text.delete("1.0", tk.END)
-        self.rag_tab_output_text.insert("1.0", "⚡ Jarvis AI analizi üretiliyor, lütfen bekleyin...\n\n")
-
-        def worker():
-            engine = self.selected_project.game_engine if self.selected_project else None
-            genre = self.selected_project.genre if self.selected_project else None
-            try:
-                resp = self.plugin.query(prompt, mode=mode, engine=engine, genre=genre)
-                self.root.after(0, lambda: self._on_rag_tab_complete(resp))
-            except Exception as e:
-                self.root.after(0, lambda err=str(e): self.rag_tab_output_text.insert(tk.END, f"\nHata: {err}"))
-
-        threading.Thread(target=worker, daemon=True).start()
+        """Geriye dönük uyumluluk: _execute_rag_query çağrısı."""
+        self._execute_rag_query()
 
     def _on_rag_tab_complete(self, response: Any) -> None:
-        self.rag_tab_output_text.delete("1.0", tk.END)
-        self.rag_tab_output_text.insert("1.0", response.text)
+        """Geriye dönük uyumluluk."""
+        self._on_rag_success(response)
 
-    # =========================================================================
-    # SEKME 3: SENKRONİZASYON VE DURUM
-    # =========================================================================
+    def _build_studio_tab(self, parent: ttk.Frame) -> None:
+        """Geriye dönük uyumluluk sekme tutucusu."""
+        pass
+
+    def _build_rag_tab(self, parent: ttk.Frame) -> None:
+        """Geriye dönük uyumluluk sekme tutucusu."""
+        pass
 
     def _build_sync_tab(self, parent: ttk.Frame) -> None:
-        """İki yönlü senkronizasyon ve sistem durum sekmesini oluşturur."""
-        sync_container = tk.Frame(parent, bg=DarkTheme.BG_DARK, padx=20, pady=20)
-        sync_container.pack(fill=tk.BOTH, expand=True)
-
-        card = tk.LabelFrame(
-            sync_container,
-            text=" 🔄 İki Yönlü Eşzamanlılık ve Depolama Entegrasyonu ",
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.ACCENT_CYAN,
-            font=(DarkTheme.FONT_FAMILY, 11, "bold"),
-            padx=20,
-            pady=16,
-            relief="groove",
-        )
-        card.pack(fill=tk.BOTH, expand=True)
-
-        info_text = (
-            "Jarvis Game Designer iki yönlü paylaşımlı mimari kullanır:\n"
-            "• Bağımsız arayüzden veya Blender'dan kaydedilen tüm projeler anında diske (data/projects/) yazılır.\n"
-            "• Jarvis asistanı aktif projeyi otomatik algılar ve oyun geliştirme sohbetlerinde projeyi temel alır.\n"
-            "• Masaüstü kısayolu özel stüdyo ikonu ile pythonw.exe bağımsız GUI'yi başlatır."
-        )
-        tk.Label(
-            card,
-            text=info_text,
-            bg=DarkTheme.BG_CARD,
-            fg=DarkTheme.TEXT_MAIN,
-            font=(DarkTheme.FONT_FAMILY, 10),
-            justify=tk.LEFT,
-        ).pack(anchor=tk.W, pady=(0, 16))
-
-        self.lbl_sync_active = tk.Label(card, text="• Aktif Proje: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.SUCCESS, font=(DarkTheme.FONT_FAMILY, 10, "bold"))
-        self.lbl_sync_active.pack(anchor=tk.W, pady=3)
-
-        self.lbl_sync_p_count = tk.Label(card, text="• Toplam Proje Sayısı: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 10))
-        self.lbl_sync_p_count.pack(anchor=tk.W, pady=3)
-
-        self.lbl_sync_b_count = tk.Label(card, text="• Toplam Varlık/Blender Dosyası: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 10))
-        self.lbl_sync_b_count.pack(anchor=tk.W, pady=3)
-
-        self.lbl_sync_chroma = tk.Label(card, text="• Vektör Veritabanı Bilgi Parçaları: -", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MAIN, font=(DarkTheme.FONT_FAMILY, 10))
-        self.lbl_sync_chroma.pack(anchor=tk.W, pady=3)
-
-        p_dir = str(self.settings.projects_dir.resolve())
-        self.lbl_sync_path = tk.Label(card, text=f"• Projeler Depolama Dizini: {p_dir}", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 9))
-        self.lbl_sync_path.pack(anchor=tk.W, pady=3)
-
-        desktop_lnk = str((get_desktop_path() / "Jarvis Game Designer.lnk").resolve())
-        self.lbl_sync_lnk = tk.Label(card, text=f"• Masaüstü Kısayolu: {desktop_lnk}", bg=DarkTheme.BG_CARD, fg=DarkTheme.TEXT_MUTED, font=(DarkTheme.FONT_FAMILY, 9))
-        self.lbl_sync_lnk.pack(anchor=tk.W, pady=3)
-
-        btn_frame = tk.Frame(card, bg=DarkTheme.BG_CARD)
-        btn_frame.pack(fill=tk.X, pady=(20, 0))
-
-        ttk.Button(
-            btn_frame,
-            text="📁 Projeler Klasörünü Aç",
-            style="Primary.TButton",
-            command=self._open_projects_folder,
-        ).pack(side=tk.LEFT, padx=(0, 8))
-
-        ttk.Button(
-            btn_frame,
-            text="🖥️ Masaüstü Kısayolu Oluştur / Yenile",
-            style="Secondary.TButton",
-            command=self._create_or_refresh_shortcut,
-        ).pack(side=tk.LEFT, padx=8)
-
-        ttk.Button(
-            btn_frame,
-            text="🔄 Durumu Yeniden Eşitle",
-            style="Success.TButton",
-            command=self._refresh_all_data,
-        ).pack(side=tk.LEFT, padx=8)
+        """Geriye dönük uyumluluk sekme tutucusu."""
+        pass
 
     # =========================================================================
     # VERİ GÜNCELLEME VE ETKİLEŞİM İŞLEMCİLERİ
@@ -1140,11 +1492,34 @@ class GameDesignerApp:
 
         first_blend = None
         for blend in self.selected_project.blend_files:
-            if active_cat and active_cat != "Tümü" and blend.category.strip().lower() != active_cat.lower():
-                continue
+            if active_cat and active_cat != "Tümü":
+                act_norm = active_cat.lower()
+                cat_norm = blend.category.strip().lower()
+                if cat_norm != act_norm and act_norm not in cat_norm and cat_norm not in act_norm:
+                    continue
             blend.refresh_stats()
             status_txt = "✅ Diskte Var" if blend.exists() else "❌ Kayıp"
             mod_txt = blend.last_modified.strftime("%Y-%m-%d %H:%M") if blend.last_modified else "-"
+            ext_clean = (blend.file_format or "").lower().lstrip(".")
+            if ext_clean in ["png", "jpg", "jpeg", "webp", "bmp"]:
+                fmt_badge = f"🎨 {ext_clean.upper()}"
+            elif ext_clean in ["ase", "aseprite"]:
+                fmt_badge = f"👾 {ext_clean.upper()}"
+            elif ext_clean == "gif":
+                fmt_badge = "🎞️ GIF"
+            elif ext_clean == "blend":
+                fmt_badge = "🧊 BLEND"
+            elif ext_clean == "obj":
+                fmt_badge = "📐 OBJ"
+            elif ext_clean in ["gltf", "glb"]:
+                fmt_badge = "🌐 GLTF"
+            elif ext_clean == "bvh":
+                fmt_badge = "🏃 BVH"
+            elif ext_clean == "fbx":
+                fmt_badge = "🦴 FBX"
+            else:
+                fmt_badge = f"📦 {ext_clean.upper() or '3D'}"
+
             self.blend_tree.insert(
                 "",
                 tk.END,
@@ -1152,6 +1527,7 @@ class GameDesignerApp:
                 values=(
                     blend.name,
                     blend.category,
+                    fmt_badge,
                     blend.file_size_formatted,
                     mod_txt,
                     status_txt,
@@ -1194,6 +1570,15 @@ class GameDesignerApp:
         if hasattr(self, "lbl_asset_inspector"):
             self.lbl_asset_inspector.config(text=inspector_text)
 
+        # 3. Yüzen HUD araç çubuğunu ve bilgi rozetini güncelle
+        if hasattr(self, "_update_hud_toolbar"):
+            self._update_hud_toolbar()
+
+        # 4. AI Danışmanı aktif bağlam rozetini güncelle
+        if hasattr(self, "lbl_ai_context"):
+            p_name = self.selected_project.name if self.selected_project else "Proje"
+            self.lbl_ai_context.config(text=f"🎯 Bağlam: {blend.name} [{blend.category}] • {p_name}")
+
     # --- HIZLI VE SÜRÜKLE-BIRAK VARLIK EKLEME ---
 
     def _batch_add_assets(self, file_paths: list[str]) -> None:
@@ -1235,8 +1620,7 @@ class GameDesignerApp:
                 logger.error(f"Varlık ekleme hatası ({path.name}): {e}")
 
         # Yeni eklenen varlıkların filtrelere takılmadan tabloda görünmesi için filtreyi 'Tümü' yap
-        if hasattr(self, "blend_cat_filter_var"):
-            self.blend_cat_filter_var.set("Tümü")
+        self._set_category_filter("Tümü")
 
         self.selected_project = self.plugin.get_project(target_proj.id)
         self._refresh_all_data()
@@ -1280,11 +1664,11 @@ class GameDesignerApp:
     def _open_selected_blend(self) -> None:
         """Seçilen 3D dosyasını sistemin varsayılan programıyla (Blender) açar."""
         selected_items = self.blend_tree.selection()
-        if not selected_items:
+        blend_id = selected_items[0] if selected_items else (self.selected_blend_ref.id if self.selected_blend_ref else None)
+        if not blend_id:
             messagebox.showwarning("Uyarı", "Lütfen açmak için bir 3D / Blender dosyası seçin.")
             return
 
-        blend_id = selected_items[0]
         try:
             self.plugin.open_blend_file(file_path_or_id=blend_id, project_name_or_id=self.selected_project.id if self.selected_project else None)
         except Exception as e:
@@ -1293,11 +1677,11 @@ class GameDesignerApp:
     def _open_selected_aseprite(self) -> None:
         """Seçilen Aseprite / görsel dosyasını Aseprite ile açar."""
         selected_items = self.blend_tree.selection()
-        if not selected_items:
+        blend_id = selected_items[0] if selected_items else (self.selected_blend_ref.id if self.selected_blend_ref else None)
+        if not blend_id:
             messagebox.showwarning("Uyarı", "Lütfen açmak için bir dosya seçin.")
             return
 
-        blend_id = selected_items[0]
         try:
             self.plugin.open_aseprite_file(
                 file_path_or_id=blend_id,
@@ -1308,21 +1692,6 @@ class GameDesignerApp:
                 "Aseprite Açma Hatası",
                 f"Dosya Aseprite ile açılamadı:\n{e}\n\nAseprite'ın bilgisayarınızda (Steam, Program Files veya AppData) kurulu olduğundan emin olun.",
             )
-
-    def _toggle_viewport_scaling(self) -> None:
-        """Viewport piksel / yumuşak ölçekleme filtresini değiştirir."""
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.toggle_scaling_filter()
-
-    def _next_viewport_frame(self) -> None:
-        """Viewport animasyonunda sonraki kareye adım atar."""
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.next_frame()
-
-    def _prev_viewport_frame(self) -> None:
-        """Viewport animasyonunda önceki kareye adım atar."""
-        if hasattr(self, "viewport_3d"):
-            self.viewport_3d.prev_frame()
 
     def _remove_selected_blend(self) -> None:
         """Seçili varlık referansını projeden kaldırır."""
@@ -1338,6 +1707,15 @@ class GameDesignerApp:
 
         try:
             self.plugin.remove_blend_file(self.selected_project.id, blend_id)
+            if self.selected_blend_ref and self.selected_blend_ref.id == blend_id:
+                self.selected_blend_ref = None
+                if hasattr(self, "lbl_asset_inspector"):
+                    self.lbl_asset_inspector.config(text="")
+                if hasattr(self, "_update_hud_toolbar"):
+                    self._update_hud_toolbar()
+                if hasattr(self, "lbl_ai_context"):
+                    p_name = self.selected_project.name if self.selected_project else "Proje"
+                    self.lbl_ai_context.config(text=f"🎯 Bağlam: {p_name} (Varlık Seçilmedi)")
             self.selected_project = self.plugin.get_project(self.selected_project.id)
             self._refresh_all_data()
         except Exception as e:

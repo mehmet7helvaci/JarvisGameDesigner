@@ -16,7 +16,34 @@ import struct
 import tkinter as tk
 from tkinter import ttk
 from typing import Any
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
+
+_CHECKER_CACHE: dict[tuple[int, int, int], Image.Image] = {}
+
+
+def get_checkerboard_pattern(width: int, height: int, tile_size: int = 16) -> Image.Image:
+    """Aseprite / Photoshop tarzı şeffaflık damalı zemin (checkerboard) dokusu üretir."""
+    key = (width, height, tile_size)
+    if key in _CHECKER_CACHE:
+        return _CHECKER_CACHE[key].copy()
+
+    if len(_CHECKER_CACHE) > 24:
+        _CHECKER_CACHE.clear()
+
+    tile_w = tile_size * 2
+    base = Image.new("RGBA", (tile_w, tile_w), (20, 27, 39, 255))
+    draw_base = ImageDraw.Draw(base)
+    tile_color = (32, 44, 62, 255)
+    draw_base.rectangle([tile_size, 0, tile_w - 1, tile_size - 1], fill=tile_color)
+    draw_base.rectangle([0, tile_size, tile_size - 1, tile_w - 1], fill=tile_color)
+
+    bg = Image.new("RGBA", (width, height))
+    for y in range(0, height, tile_w):
+        for x in range(0, width, tile_w):
+            bg.paste(base, (x, y))
+
+    _CHECKER_CACHE[key] = bg
+    return bg.copy()
 
 from game_designer.models.project import (
     SUPPORTED_3D_EXTENSIONS,
@@ -677,6 +704,7 @@ class Viewport3DCanvas(tk.Frame):
         self.current_tk_img: ImageTk.PhotoImage | None = None
         self.display_mode: str = "3d"  # '3d' veya 'image'
         self.scaling_mode: str = "pixel"  # 'pixel' (Nearest) veya 'smooth' (Lanczos)
+        self.render_style: str = "shaded"  # 'shaded' (Lambertian solid) veya 'wireframe'
 
         # 2D Sprite & Animasyon Durumu
         self.animation_frames: list[Image.Image] = []
@@ -696,6 +724,7 @@ class Viewport3DCanvas(tk.Frame):
         self.anim_time: float = 0.0
         self.anim_subtype: str = "walk"
         self._anim_timer_id: str | None = None
+        self.on_anim_state_change: Any = None
 
         self._bind_events()
         self._load_fallback_scene()
@@ -716,6 +745,12 @@ class Viewport3DCanvas(tk.Frame):
         # Sağ Tık ile Pan
         self.canvas.bind("<Button-3>", self._on_mouse_down)
         self.canvas.bind("<B3-Motion>", self._on_pan_drag)
+        self.canvas.bind("<ButtonRelease-3>", self._on_mouse_up)
+
+        # Orta Tuş (Tekerlek) ile Pan
+        self.canvas.bind("<Button-2>", self._on_mouse_down)
+        self.canvas.bind("<B2-Motion>", self._on_pan_drag)
+        self.canvas.bind("<ButtonRelease-2>", self._on_mouse_up)
 
     def _start_animation_loop(self) -> None:
         """Saniyede ~30 kare canlı iskelet hareketi ve yumuşak sahne döngüsü."""
@@ -748,6 +783,11 @@ class Viewport3DCanvas(tk.Frame):
                         self.current_frame_index = 0
                     else:
                         self.is_animating = False
+                        if callable(self.on_anim_state_change):
+                            try:
+                                self.on_anim_state_change(False)
+                            except Exception:
+                                pass
                 self.current_thumbnail_img = self.animation_frames[self.current_frame_index]
                 needs_render = True
 
@@ -831,6 +871,37 @@ class Viewport3DCanvas(tk.Frame):
         self.render()
         return self.auto_spin
 
+    def toggle_render_style(self) -> str:
+        """💡 Gölgeli (Solid Shaded) ile 📐 Tel Kafes (Wireframe) arasında geçiş yapar."""
+        self.render_style = "wireframe" if self.render_style == "shaded" else "shaded"
+        self.render()
+        return self.render_style
+
+    def zoom_fit(self) -> None:
+        """Görünümü sığdırır ve ortalar."""
+        self.pan_x = 0.0
+        self.pan_y = 0.0
+        self.zoom = 120.0
+        self.render()
+
+    def zoom_1_to_1(self) -> None:
+        """2D görseli 1:1 orijinal piksel boyutuna getirir."""
+        if self.display_mode == "image" and self.current_thumbnail_img:
+            w = max(100, self.canvas.winfo_width())
+            h = max(100, self.canvas.winfo_height())
+            orig_w, orig_h = self.current_thumbnail_img.size
+            avail_w = max(50, w - 30)
+            avail_h = max(50, h - 30)
+            base_scale = min(avail_w / max(1, orig_w), avail_h / max(1, orig_h))
+            if orig_w <= 64 and orig_h <= 64:
+                base_scale = max(base_scale, min(4.0, avail_w / orig_w, avail_h / orig_h))
+            self.zoom = max(1.0, min(2400.0, 120.0 / max(0.001, base_scale)))
+            self.pan_x = 0.0
+            self.pan_y = 0.0
+            self.render()
+        else:
+            self.zoom_fit()
+
     def _on_mouse_down(self, event: tk.Event) -> None:
         self._last_mouse_x = event.x
         self._last_mouse_y = event.y
@@ -849,19 +920,19 @@ class Viewport3DCanvas(tk.Frame):
 
         if self.display_mode == "image":
             # 2D Görsel veya Aseprite dosyası ise fareyle sürükleme pan (taşıma) yapar
-            if self.current_format in (SUPPORTED_IMAGE_EXTENSIONS | SUPPORTED_ASEPRITE_EXTENSIONS):
-                self.pan_x += dx
-                self.pan_y += dy
-                self.render()
-                return
-            # 3D dosyanın gömülü thumbnail'i ise 3D sahneye geç
-            self.display_mode = "3d"
+            # Asla 3D moda veya tel kafes tanka geçiş yapılmaz!
+            self.pan_x += dx
+            self.pan_y += dy
+            self.render()
+            return
 
         self.yaw = (self.yaw + dx * 0.7) % 360
         self.pitch = max(-89.0, min(89.0, self.pitch + dy * 0.7))
         self.render()
 
     def _on_pan_drag(self, event: tk.Event) -> None:
+        if not self._is_dragging:
+            return
         dx = event.x - self._last_mouse_x
         dy = event.y - self._last_mouse_y
         self._last_mouse_x = event.x
@@ -877,7 +948,7 @@ class Viewport3DCanvas(tk.Frame):
             self._zoom(0.85)
 
     def _zoom(self, factor: float) -> None:
-        self.zoom = max(20.0, min(600.0, self.zoom * factor))
+        self.zoom = max(1.0, min(2400.0, self.zoom * factor))
         self.render()
 
     def reset_camera(self) -> None:
@@ -1090,9 +1161,9 @@ class Viewport3DCanvas(tk.Frame):
             if orig_w <= 64 and orig_h <= 64:
                 base_scale = max(base_scale, min(4.0, avail_w / orig_w, avail_h / orig_h))
 
-            zoom_mult = max(0.05, self.zoom / 120.0)
-            target_w = max(1, int(orig_w * base_scale * zoom_mult))
-            target_h = max(1, int(orig_h * base_scale * zoom_mult))
+            zoom_mult = max(0.001, self.zoom / 120.0)
+            target_w = max(1, int(round(orig_w * base_scale * zoom_mult)))
+            target_h = max(1, int(round(orig_h * base_scale * zoom_mult)))
 
             filter_mode = (
                 Image.Resampling.NEAREST
@@ -1100,8 +1171,28 @@ class Viewport3DCanvas(tk.Frame):
                 else Image.Resampling.LANCZOS
             )
             scaled_img = self.current_thumbnail_img.resize((target_w, target_h), resample=filter_mode)
-            self.current_tk_img = ImageTk.PhotoImage(scaled_img)
+            if scaled_img.mode != "RGBA":
+                scaled_img = scaled_img.convert("RGBA")
+
+            # Aseprite / Photoshop tarzı damalı şeffaflık zemini (checkerboard)
+            checker_bg = get_checkerboard_pattern(target_w, target_h, tile_size=16)
+            composited = Image.alpha_composite(checker_bg, scaled_img)
+
+            self.current_tk_img = ImageTk.PhotoImage(composited)
             self.canvas.create_image(cx, cy, image=self.current_tk_img, anchor=tk.CENTER)
+
+            # Sprite sınır çerçevesi (şık 1px cyan hat)
+            half_w = target_w / 2.0
+            half_h = target_h / 2.0
+            self.canvas.create_rectangle(
+                cx - half_w,
+                cy - half_h,
+                cx + half_w,
+                cy + half_h,
+                outline="#06b6d4",
+                width=1,
+            )
+
             is_blend_thumb = bool(self.current_format == ".blend" and not self.animation_frames)
             self._draw_hud(w, h, is_thumbnail=is_blend_thumb)
             return
@@ -1115,15 +1206,17 @@ class Viewport3DCanvas(tk.Frame):
         cos_y, sin_y = math.cos(rad_yaw), math.sin(rad_yaw)
         cos_p, sin_p = math.cos(rad_pitch), math.sin(rad_pitch)
 
-        def project(x: float, y: float, z: float) -> tuple[float, float, float]:
+        def rotate_view(x: float, y: float, z: float) -> tuple[float, float, float]:
             x1 = x * cos_y + z * sin_y
             y1 = y
             z1 = -x * sin_y + z * cos_y
-
             x2 = x1
             y2 = y1 * cos_p - z1 * sin_p
             z2 = y1 * sin_p + z1 * cos_p
+            return x2, y2, z2
 
+        def project(x: float, y: float, z: float) -> tuple[float, float, float]:
+            x2, y2, z2 = rotate_view(x, y, z)
             persp = 1.0 / (1.0 + z2 * 0.15) if (1.0 + z2 * 0.15) > 0.05 else 1.0
             sx = cx + x2 * self.zoom * persp
             sy = cy - y2 * self.zoom * persp
@@ -1140,40 +1233,113 @@ class Viewport3DCanvas(tk.Frame):
                 self.canvas.create_oval(s1[0] - 4, s1[1] - 4, s1[0] + 4, s1[1] + 4, fill="#f8fafc", outline="#8b5cf6", width=1.5)
                 self.canvas.create_oval(s2[0] - 4, s2[1] - 4, s2[0] + 4, s2[1] + 4, fill="#f8fafc", outline="#8b5cf6", width=1.5)
 
-        # 5. 3D Mesh / Poligon Çizimi (Painter's Algorithm)
+        # 5. 3D Mesh / Poligon Çizimi (Painter's Algorithm & Real-Time Lambertian Shading)
         elif self.mesh_vertices and self.mesh_faces:
-            projected_v = [project(*v) for v in self.mesh_vertices]
+            rot_v = [rotate_view(*v) for v in self.mesh_vertices]
+            projected_v = [
+                (
+                    cx + rx * self.zoom * (1.0 / (1.0 + rz * 0.15) if (1.0 + rz * 0.15) > 0.05 else 1.0),
+                    cy - ry * self.zoom * (1.0 / (1.0 + rz * 0.15) if (1.0 + rz * 0.15) > 0.05 else 1.0),
+                    rz,
+                )
+                for rx, ry, rz in rot_v
+            ]
 
             faces_with_depth = []
             for face in self.mesh_faces:
                 if len(face) < 2:
                     continue
-                avg_z = sum(projected_v[idx][2] for idx in face) / len(face)
-                faces_with_depth.append((avg_z, face))
+                avg_z = sum(rot_v[idx][2] for idx in face) / len(face)
 
-            faces_with_depth.sort(key=lambda item: item[0])
-            color_cycle = ["#1e293b", "#0f766e", "#1e3a8a", "#4338ca", "#0369a1", "#0284c7"]
+                normal = (0.0, 1.0, 0.0)
+                if len(face) >= 3:
+                    v0 = rot_v[face[0]]
+                    v1 = rot_v[face[1]]
+                    v2 = rot_v[face[2]]
+                    e1 = (v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2])
+                    e2 = (v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2])
+                    nx = e1[1] * e2[2] - e1[2] * e2[1]
+                    ny = e1[2] * e2[0] - e1[0] * e2[2]
+                    nz = e1[0] * e2[1] - e1[1] * e2[0]
+                    n_len = math.sqrt(nx * nx + ny * ny + nz * nz)
+                    if n_len > 1e-6:
+                        nx, ny, nz = nx / n_len, ny / n_len, nz / n_len
+                        if nz > 0:
+                            nx, ny, nz = -nx, -ny, -nz
+                        normal = (nx, ny, nz)
 
-            for i, (_, face) in enumerate(faces_with_depth):
+                faces_with_depth.append((avg_z, face, normal))
+
+            # Painter's Algorithm: En uzaktaki yüzeyler (büyük Z) önce, en yakındakiler (küçük Z) sonra çizilir!
+            faces_with_depth.sort(key=lambda item: item[0], reverse=True)
+
+            # Kategoriye göre baz stüdyo metalik rengi
+            cat_lower = (self.current_category or "").lower()
+            fname_lower = (self.current_file_path.name if self.current_file_path else "").lower()
+            if any(k in fname_lower for k in ["tank", "panzer"]) or "araç" in cat_lower:
+                base_r, base_g, base_b = 64, 86, 110  # Steel Panzer Grey-Blue
+            elif "karakter" in cat_lower:
+                base_r, base_g, base_b = 76, 100, 132 # Cyber Armor
+            elif "çevre" in cat_lower or "level" in cat_lower:
+                base_r, base_g, base_b = 60, 80, 96   # Dark Slate
+            elif "prop" in cat_lower:
+                base_r, base_g, base_b = 88, 92, 122  # Polished Cobalt
+            else:
+                base_r, base_g, base_b = 65, 90, 120  # Obsidian Navy
+
+            is_wireframe = (getattr(self, "render_style", "shaded") == "wireframe")
+
+            for i, (_, face, normal) in enumerate(faces_with_depth):
                 poly_pts = []
                 for idx in face:
                     sx, sy, _ = projected_v[idx]
                     poly_pts.extend([sx, sy])
 
-                fill_col = color_cycle[i % len(color_cycle)]
                 if len(poly_pts) >= 6:
-                    self.canvas.create_polygon(
-                        poly_pts,
-                        fill=fill_col,
-                        outline="#38bdf8",
-                        width=1.5,
-                        joinstyle=tk.ROUND,
-                    )
+                    if is_wireframe:
+                        self.canvas.create_polygon(
+                            poly_pts,
+                            fill="",
+                            outline="#38bdf8",
+                            width=1.5,
+                            joinstyle=tk.ROUND,
+                        )
+                    else:
+                        # Gölgeli (Solid Shaded) - Gerçek Zamanlı Lambertian Işıklandırma
+                        nx, ny, nz = normal
+                        # Kamera uzayında dinamik ana (key) ve dolgu (fill) ışık yönü
+                        k_dot = max(0.0, nx * 0.505 + ny * 0.707 - nz * 0.505)
+                        f_dot = max(0.0, -nx * 0.577 + ny * 0.231 - nz * 0.783) * 0.35
+                        ambient = 0.26
+                        intensity = min(1.0, max(0.18, ambient + k_dot * 0.65 + f_dot))
+
+                        # Yüzeyler arası kontrast için hafif varyasyon
+                        face_var = 1.0 + ((i % 5) - 2) * 0.04
+                        sr = int(min(255, max(0, base_r * intensity * face_var * 1.35)))
+                        sg = int(min(255, max(0, base_g * intensity * face_var * 1.35)))
+                        sb = int(min(255, max(0, base_b * intensity * face_var * 1.35)))
+                        fill_col = f"#{sr:02x}{sg:02x}{sb:02x}"
+
+                        # Ton-sür-ton ince kenar
+                        er = max(0, int(sr * 0.70))
+                        eg = max(0, int(sg * 0.70))
+                        eb = max(0, int(sb * 0.70))
+                        edge_col = f"#{er:02x}{eg:02x}{eb:02x}"
+
+                        self.canvas.create_polygon(
+                            poly_pts,
+                            fill=fill_col,
+                            outline=edge_col,
+                            width=1,
+                            joinstyle=tk.ROUND,
+                        )
                 elif len(poly_pts) == 4:
                     self.canvas.create_line(poly_pts, fill="#06b6d4", width=2)
 
-            for sx, sy, _ in projected_v:
-                self.canvas.create_oval(sx - 2, sy - 2, sx + 2, sy + 2, fill="#38bdf8", outline="")
+            # Tel kafes modunda tepe noktaları noktacıkları göster (Gölgeli modda asla gösterme!)
+            if is_wireframe:
+                for sx, sy, _ in projected_v:
+                    self.canvas.create_oval(sx - 2, sy - 2, sx + 2, sy + 2, fill="#38bdf8", outline="")
 
         # 6. Eksen Gizmo'su (Sol Alt: X Kırmızı, Y Yeşil, Z Mavi)
         self._draw_gizmo(w, h, rad_yaw, rad_pitch)
@@ -1259,7 +1425,7 @@ class Viewport3DCanvas(tk.Frame):
 
         # Durum ve İpuçları
         if is_thumbnail:
-            tip_text = "📷 Blender Gömülü Görsel Önizleme (3D görünüme geçmek için tıklayıp sürükleyin veya Mod butonuna basın)"
+            tip_text = "📷 Blender Gömülü Görsel Önizleme (3D görünüme geçmek için Mod butonuna basın)"
         elif self.display_mode == "image":
             filter_txt = "👾 Piksel (Nearest)" if self.scaling_mode == "pixel" else "✨ Yumuşak (Lanczos)"
             zoom_pct = int((self.zoom / 120.0) * 100)
@@ -1280,7 +1446,8 @@ class Viewport3DCanvas(tk.Frame):
             tip_text = f"🏃 {status_symbol} ({self.anim_subtype.upper()}) | Sol Tık: Çevir • Tekerlek: Zoom • Sağ Tık: Pan"
         else:
             spin_txt = " | 🔄 Turntable Açık" if self.auto_spin else ""
-            tip_text = f"📐 3D Model Önizleme{spin_txt} | Sol Tık: Çevir • Tekerlek: Zoom • Sağ Tık: Pan"
+            style_txt = "💡 Gölgeli (Solid)" if getattr(self, "render_style", "shaded") == "shaded" else "📐 Tel Kafes (Wireframe)"
+            tip_text = f"📐 3D Model [{style_txt}]{spin_txt} | Sol Tık: Çevir • Tekerlek: Zoom • Sağ Tık: Pan"
 
         self.canvas.create_text(
             12, 32,
@@ -1298,7 +1465,8 @@ class Viewport3DCanvas(tk.Frame):
             if self.bvh_bones:
                 stat_text = f"Kemikler: {len(self.bvh_bones)} | FPS: ~30"
             elif self.mesh_vertices:
-                stat_text = f"Verts: {len(self.mesh_vertices)} | Polys: {len(self.mesh_faces)}"
+                style_badge = "GÖLGELİ" if getattr(self, "render_style", "shaded") == "shaded" else "TEL KAFES"
+                stat_text = f"Verts: {len(self.mesh_vertices)} | Polys: {len(self.mesh_faces)} | {style_badge}"
             else:
                 stat_text = "3D Sahne Aktif"
         else:
